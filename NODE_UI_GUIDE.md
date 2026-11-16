@@ -154,6 +154,7 @@ ComfyUI's native combo is hidden and kept for its value. The visible dropdown is
 - Clicking a summary row only toggles expansion. It must not select the row, so a parent path is not added by accident.
 - Checkboxes select leaf paths. Pressing Add writes the selected paths into the keys textarea, one per line.
 - Cap the file size (`MAX_PICK_BYTES`, 10 MB in the current code).
+- Text mode (`text_parsed` on Load File): the same popup lists sections, not a tree. Sections come from `GET /nodeforge/load_file/sections?path=...`, which returns the parsed INI text. Each section row is collapsible. Its checkbox selects the whole section, and its field rows select one field each, written as `section/field`. Pressing Add writes the entries into the keys textarea.
 
 ---
 

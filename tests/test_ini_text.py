@@ -1,6 +1,8 @@
+import re
+
 import pytest
 
-from nodes.ini_text import parse_ini_text, pick_section
+from nodes.ini_text import parse_ini_text, pick_field, pick_section, section_block
 
 GOOD = """\
 ; a comment
@@ -44,13 +46,26 @@ def test_parses_sections_keys_and_multiline_values():
     ],
 )
 def test_malformed_text_raises_with_line_number(text, message):
-    with pytest.raises(ValueError, match=message) as info:
+    with pytest.raises(ValueError, match=re.escape(message)) as info:
         parse_ini_text(text, "story.txt")
     assert "story.txt" in str(info.value)
 
 
-def test_pick_section_returns_exact_name_and_lists_available():
+def test_section_block_keeps_continuation_lines_and_drops_trailing_blanks():
+    text = "[a]\nk = one\n  two\n\n[b]\nx = 1\n\n[end]\n"
+    parse_ini_text(text, "story.txt")
+    assert section_block(text, "a") == "[a]\nk = one\n  two"
+    assert section_block(text, "b") == "[b]\nx = 1"
+
     data = parse_ini_text(GOOD, "story.txt")
     assert pick_section(data, "beat.01", "story.txt")["sound"] == "fan hum, 100% quiet"
     with pytest.raises(ValueError, match=r"Sections: meta, beat\.01"):
         pick_section(data, "beat.02", "story.txt")
+
+
+def test_pick_field_returns_one_value_and_names_the_available_fields():
+    data = parse_ini_text(GOOD, "story.txt")
+    assert pick_field(data, "beat.01/sound", "story.txt") == "fan hum, 100% quiet"
+    assert pick_field(data, "beat.01/h3_prompt", "story.txt").endswith("sets the plate down.")
+    with pytest.raises(ValueError, match=r"field 'nope' not found in \[beat\.01\].*Fields: action"):
+        pick_field(data, "beat.01/nope", "story.txt")

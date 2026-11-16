@@ -29,7 +29,7 @@ import hashlib
 import json
 import os
 
-from .ini_text import parse_ini_text, pick_section
+from .ini_text import parse_ini_text, pick_field, pick_section, section_block
 from .json_nodes import MAX_SPLIT_KEYS, get_path, parse_json, parse_keys, to_output
 from .utils import read_text_file, resolve_under
 
@@ -103,8 +103,8 @@ class NodeForgeLoadFile:
         "Text mode outputs the file text. JSON mode outputs the JSON as a string, "
         "or with JSON split, one output per key you list (dotted or bracket "
         "paths, e.g. models.0.name). Text parsed reads an INI-style text file "
-        "and outputs one value per section you list (e.g. beat.01), or the text "
-        "unchanged when no sections are listed. Split outputs are any type: "
+        "and outputs one section per name you list (e.g. beat.01) as its raw text, "
+        "or one field as text (e.g. beat.01/action). The text is unchanged when no keys are listed. Split outputs are any type: "
         "numbers and booleans pass as-is, objects, lists and null are JSON text."
     )
     CATEGORY = "NodeForge/IO"
@@ -125,7 +125,7 @@ class NodeForgeLoadFile:
                 "output_type": (["string", "json", "json_split", "text_parsed"], {"default": "string", "tooltip": "String: the text. Json: pretty JSON text. Json split: one output per key below. Text parsed: INI-style text file, one output per section below, or the text unchanged if none."}),
             },
             "optional": {
-                "keys": ("STRING", {"multiline": True, "default": "", "tooltip": "JSON split: one path per line, e.g. name or models.0.name. Text parsed: one section name per line, e.g. beat.01."}),
+                "keys": ("STRING", {"multiline": True, "default": "", "tooltip": "JSON split: one path per line, e.g. name or models.0.name. Text parsed: one section per line, e.g. beat.01, or one field, e.g. beat.01/action."}),
             },
         }
 
@@ -155,10 +155,13 @@ class NodeForgeLoadFile:
             if output_type == "string" or not keys.strip():
                 return (text,) + pad
             sections = parse_ini_text(text, path)
-            values = [
-                to_output(pick_section(sections, name, path))
-                for name in parse_keys(keys, "Text parsed")
-            ]
+            values = []
+            for name in parse_keys(keys, "Text parsed"):
+                if "/" in name:
+                    values.append(pick_field(sections, name, path))
+                else:
+                    pick_section(sections, name, path)
+                    values.append(section_block(text, name))
             return tuple(values) + (None,) * (MAX_SPLIT_KEYS - len(values))
 
         if output_type == "text_parsed":

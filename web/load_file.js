@@ -206,19 +206,48 @@ function renderEntries(container, data, parentPath, ctx) {
     }
 }
 
-// Text parsed: one row per section. Whole sections are picked, so no nesting.
+// Text parsed: each section is a collapsible row. Its checkbox picks the whole
+// section, and its field rows pick one field as section/field.
 function renderSections(container, sections, ctx) {
     for (const [name, fields] of Object.entries(sections)) {
-        const row = document.createElement("div");
-        row.className = "nf-kp-row";
-        row.dataset.path = name;
+        const details = document.createElement("details");
+        details.className = "nf-kp-group";
+        const summary = document.createElement("summary");
+        summary.className = "nf-kp-row";
+        summary.dataset.path = name;
+        const arrow = document.createElement("span");
+        arrow.className = "nf-kp-arrow";
+        arrow.textContent = "▶";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.dataset.boxPath = name;
+        box.addEventListener("click", (e) => {
+            e.stopPropagation();
+            ctx.toggle(name);
+        });
         const label = document.createElement("span");
         label.className = "nm";
         const count = Object.keys(fields).length;
         label.textContent = `${name} - ${count} ${count === 1 ? "field" : "fields"}`;
-        row.append(label);
-        row.addEventListener("click", () => ctx.toggle(name));
-        container.append(row);
+        summary.append(arrow, box, label);
+        details.append(summary);
+
+        const inner = document.createElement("div");
+        inner.className = "nf-kp-children";
+        for (const field of Object.keys(fields)) {
+            const path = `${name}/${field}`;
+            const row = document.createElement("div");
+            row.className = "nf-kp-row";
+            row.dataset.path = path;
+            const fieldLabel = document.createElement("span");
+            fieldLabel.className = "nm";
+            fieldLabel.textContent = field;
+            row.append(fieldLabel);
+            row.addEventListener("click", () => ctx.toggle(path));
+            inner.append(row);
+        }
+        details.append(inner);
+        container.append(details);
     }
 }
 
@@ -372,6 +401,8 @@ app.registerExtension({
                 area.className = "nf-keys";
                 area.placeholder = "name\nmodels.0.name";
                 area.spellcheck = false;
+                // ComfyUI forwards wheel to the canvas (zoom) unless this marker is set and the element is focused.
+                area.dataset.captureWheel = "true";
                 area.value = String(oldKeys.value ?? "");
                 this.widgets.splice(this.widgets.indexOf(oldKeys), 1);
                 const keys = this.addDOMWidget("keys", "custom", area, {

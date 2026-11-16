@@ -136,18 +136,34 @@ def test_is_changed_tracks_computed_path(folders):
 
 def test_text_parsed_without_keys_returns_text_unchanged(folders):
     inp, _ = folders
-    (inp / "story.txt").write_text(STORY, encoding="utf-8")
+    (inp / "story.txt").write_bytes(STORY.encode("utf-8"))
     out = NodeForgeLoadFile().run("input/story.txt", "text_parsed", keys="  \n")
     assert out[0] == STORY
     assert out[1:] == (None,) * (MAX_SPLIT_KEYS - 1)
 
 
-def test_text_parsed_outputs_each_selected_section_as_json_text(folders):
+def test_text_parsed_outputs_each_selected_section_as_raw_block(folders):
     inp, _ = folders
     (inp / "story.txt").write_text(STORY, encoding="utf-8")
     out = NodeForgeLoadFile().run("input/story.txt", "text_parsed", keys="beat.01\nmeta")
-    assert out[:2] == ('{"action": "Lakshmi enters."}', '{"title": "Idlis"}')
+    assert out[:2] == ("[beat.01]\naction = Lakshmi enters.", "[meta]\ntitle = Idlis")
     assert out[2:] == (None,) * (MAX_SPLIT_KEYS - 2)
+
+
+def test_text_parsed_outputs_one_field_as_its_value(folders):
+    inp, _ = folders
+    (inp / "story.txt").write_text(STORY, encoding="utf-8")
+    out = NodeForgeLoadFile().run("input/story.txt", "text_parsed", keys="beat.01/action\nmeta")
+    assert out[0] == "Lakshmi enters."
+    assert out[1] == "[meta]\ntitle = Idlis"
+    assert out[2:] == (None,) * (MAX_SPLIT_KEYS - 2)
+
+
+def test_text_parsed_missing_field_names_the_available_ones(folders):
+    inp, _ = folders
+    (inp / "story.txt").write_text(STORY, encoding="utf-8")
+    with pytest.raises(ValueError, match=r"field 'sound' not found in \[beat\.01\]"):
+        NodeForgeLoadFile().run("input/story.txt", "text_parsed", keys="beat.01/sound")
 
 
 def test_text_parsed_missing_section_names_the_available_ones(folders):

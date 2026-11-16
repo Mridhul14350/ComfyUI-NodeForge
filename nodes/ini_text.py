@@ -39,7 +39,10 @@ def parse_ini_text(text: str, source: str) -> dict:
         if raw[0] in " \t":
             if key is None:
                 raise fail(number, "indented line with no key above it")
-            sections[section][key].extend([""] * blanks + [stripped])
+            lines = sections[section][key]
+            if lines == [""]:
+                lines.clear()
+            lines.extend([""] * blanks + [stripped])
             blanks = 0
             continue
 
@@ -81,6 +84,19 @@ def parse_ini_text(text: str, source: str) -> dict:
     }
 
 
+def section_block(text: str, name: str) -> str:
+    """Return one section as written, header line included. Call only after
+    parse_ini_text has accepted the text."""
+    lines = text.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.rstrip() == f"[{name}]")
+    end = start + 1
+    while end < len(lines) and not SECTION_RE.match(lines[end].rstrip()):
+        end += 1
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])
+
+
 def pick_section(sections: dict, name: str, source: str) -> dict:
     """Return one whole section by its exact name, e.g. 'beat.01'."""
     if name not in sections:
@@ -89,3 +105,16 @@ def pick_section(sections: dict, name: str, source: str) -> dict:
             f"section [{name}] not found in {source}. Sections: {available}"
         )
     return sections[name]
+
+
+def pick_field(sections: dict, path: str, source: str) -> str:
+    """Return one field value by 'section/field', e.g. 'beat.01/action'.
+    Section names cannot contain '/', so the first '/' is the separator."""
+    section, _, field = path.partition("/")
+    fields = pick_section(sections, section, source)
+    if field not in fields:
+        available = ", ".join(fields) or "none"
+        raise ValueError(
+            f"field '{field}' not found in [{section}] in {source}. Fields: {available}"
+        )
+    return fields[field]
