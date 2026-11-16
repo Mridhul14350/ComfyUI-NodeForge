@@ -1,0 +1,1 @@
+# NodeForge needs no packages beyond what ComfyUI already ships.
