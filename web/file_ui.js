@@ -72,9 +72,11 @@ summary.nf-kp-row::-webkit-details-marker { display:none; }
 .nf-lf-iconbtn:disabled { opacity:.35; cursor:default; }
 .nf-lf-pick { background:var(--nf-acc); border:1px solid var(--nf-acc); border-radius:6px; padding:7px; color:#fff; font-size:12px; font-weight:500; cursor:pointer; }
 .nf-lf-pick:hover { filter:brightness(1.08); }
-.nf-lf-root.nf-lf-off { opacity:.55; }
-.nf-lf-root.nf-lf-off button:disabled { cursor:not-allowed; }
-.nf-lf-root.nf-lf-off button:disabled:hover { border-color:#3a3a3a; filter:none; }
+.nf-lf-off { opacity:.55; }
+.nf-lf-off, .nf-lf-off button:disabled { cursor:not-allowed; }
+.nf-lf-off:hover, .nf-lf-off button:disabled:hover { border-color:#3a3a3a; filter:none; }
+.nf-kp-info { display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 12px; border-bottom:1px solid #333; font-size:11px; color:#9a9a9a; }
+.nf-kp-info span { white-space:nowrap; }
 .nf-keys { box-sizing:border-box; width:100%; background:#1d1d1d; color:#ddd; border:1px solid #444; border-radius:4px; padding:6px 8px; font:11px ui-monospace, Consolas, monospace; line-height:1.4; resize:vertical; min-height:44px; }
 .nf-keys:focus { outline:none; border-color:var(--nf-acc); }
 `;
@@ -334,10 +336,12 @@ export function buildFileUi(node, { fileWidget, onPickKeys, keyCount, keysVisibl
         prevBtn.disabled = !!computed || i <= 0;
         nextBtn.disabled = !!computed || values.length === 0 || i >= values.length - 1;
         fileBtn.disabled = !!computed;
-        root.classList.toggle("nf-lf-off", !!computed);
+        fileBtn.classList.toggle("nf-lf-off", !!computed);
+        nav.classList.toggle("nf-lf-off", !!computed);
         pick.textContent = `Pick keys (${keyCount()})`;
-        pick.disabled = !!computed;
-        pick.title = computed ? "Pick keys needs the file dropdown, not file_path" : "Choose JSON keys to split";
+        // A typed file_path can be read, so only a linked path (unknown until run) blocks Pick keys.
+        pick.disabled = !!computed?.linked;
+        pick.title = computed?.linked ? "Pick keys needs a typed file_path, not a linked input" : "Choose keys to split";
         pick.style.display = keysVisible() ? "" : "none";
         node.setSize?.(node.computeSize());
     }

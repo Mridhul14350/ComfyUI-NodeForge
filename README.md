@@ -18,7 +18,7 @@ Loads a text or JSON file from the ComfyUI **input** or **output** folder. Click
 | `file_path` | text, or a link from another node | empty | Optional. A path under input or output, e.g. `output/run1/cfg.json`. Use `\` or `/`. Absolute paths and `..` are refused. When set, it overrides `file`. |
 | `output_type` | `string`, `json`, `json_split`, `text_parsed` | `string` | See the table below. |
 | `keys` | multi-line text | empty | Shown for `json_split` (key paths) and `text_parsed` (section names, or `section/field`). One entry per line. |
-| `Pick keys` | button | - | Shown for `json_split` on a `.json` file, and for `text_parsed` on a text file. For JSON it opens the file as a tree. For text it lists the sections, and each section expands to its fields. Click a row, or the checkbox on a group, to select it, then click Add to append it to `keys`. Disabled while `file_path` is set. |
+| `Pick keys` | button | - | Shown for `json_split` on a `.json` file, and for `text_parsed` on a text file. Works with `file` or a typed `file_path`. A linked `file_path` disables it, because the path is only known at run time. The popup shows the file's name, folder, type, size and section or key count, then the tree. For JSON it opens the file as a tree. For text it lists the sections, and each section expands to its fields. Click a row, or the checkbox on a group, to select it, then click Add to append it to `keys`. |
 
 **Output type**
 

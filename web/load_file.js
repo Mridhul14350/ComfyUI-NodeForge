@@ -22,7 +22,7 @@ function computedSource(node) {
         (i) => (i.name === "file_path" || i.widget?.name === "file_path") && i.link != null,
     );
     if (linked) return { linked: true, path: "" };
-    const typed = String(getWidget(node, "file_path")?.value ?? "").trim();
+    const typed = String(getWidget(node, "file_path")?.value ?? "").trim().replace(/\\/g, "/");
     return typed ? { linked: false, path: typed } : null;
 }
 
@@ -119,8 +119,7 @@ function currentKeys(node) {
         .filter(Boolean);
 }
 
-async function loadJson(fileValue) {
-    if (!JSON_EXT_RE.test(String(fileValue ?? ""))) throw new Error("Pick keys needs a .json file");
+async function fetchBlob(fileValue) {
     if (!fileValue) throw new Error("Choose a file first");
     const parts = String(fileValue).split("/");
     const type = parts.shift();
@@ -128,22 +127,60 @@ async function loadJson(fileValue) {
     const params = new URLSearchParams({ filename, type, subfolder: parts.join("/") });
     const res = await fetch(api.apiURL(`/view?${params}`));
     if (!res.ok) throw new Error(`Could not read file (${res.status})`);
-    const blob = await res.blob();
-    if (blob.size > MAX_PICK_BYTES) throw new Error("File is over 10 MB");
-    try {
-        return JSON.parse(await blob.text());
-    } catch {
-        throw new Error("File is not valid JSON");
-    }
+    return res.blob();
 }
 
 async function loadSections(fileValue) {
-    if (!fileValue) throw new Error("Choose a file first");
     const params = new URLSearchParams({ path: fileValue });
     const res = await fetch(api.apiURL(`/nodeforge/load_file/sections?${params}`));
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Could not read file (${res.status})`);
     return body;
+}
+
+// Data for the Pick keys popup, plus the file size for the details row.
+async function loadPickerData(fileValue, parsed) {
+    if (!fileValue) throw new Error("Choose a file first");
+    if (parsed) {
+        const [data, blob] = await Promise.all([loadSections(fileValue), fetchBlob(fileValue)]);
+        return { data, size: blob.size };
+    }
+    if (!JSON_EXT_RE.test(fileValue)) throw new Error("Pick keys needs a .json file");
+    const blob = await fetchBlob(fileValue);
+    if (blob.size > MAX_PICK_BYTES) throw new Error("File is over 10 MB");
+    try {
+        return { data: JSON.parse(await blob.text()), size: blob.size };
+    } catch {
+        throw new Error("File is not valid JSON");
+    }
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// One line of details: name, folder, type, size and how many sections or keys the file has.
+function renderFileInfo(info, fileValue, size, parsed, data) {
+    const parts = fileValue.split("/");
+    const name = parts.pop();
+    const count = Array.isArray(data) ? data.length : Object.keys(data).length;
+    const countLabel = parsed ? "Sections" : Array.isArray(data) ? "Items" : "Top-level keys";
+    const rows = [
+        ["File", name],
+        ["Folder", parts.join("/")],
+        ["Type", parsed ? "Text (INI)" : "JSON"],
+        ["Size", formatSize(size)],
+        [countLabel, count],
+    ];
+    info.replaceChildren(
+        ...rows.map(([label, value]) => {
+            const span = document.createElement("span");
+            span.textContent = `${label}: ${value}`;
+            return span;
+        }),
+    );
 }
 
 function formatPreview(value) {
@@ -253,8 +290,9 @@ function renderSections(container, sections, ctx) {
 
 function openKeyPicker(node) {
     if (closeKeyPicker) closeKeyPicker();
-    if (computedSource(node)) return;
-    const fileValue = getWidget(node, "file")?.value;
+    const source = computedSource(node);
+    if (source?.linked) return;
+    const fileValue = source ? source.path : getWidget(node, "file")?.value;
 
     ensureCss();
     const overlay = document.createElement("div");
@@ -267,6 +305,10 @@ function openKeyPicker(node) {
     const header = document.createElement("div");
     header.className = "nf-kp-head";
     header.textContent = `${parsed ? "Pick sections" : "Pick JSON keys"}${fileValue ? ` - ${fileValue}` : ""}`;
+
+    const info = document.createElement("div");
+    info.className = "nf-kp-info";
+    info.textContent = "Loading file details...";
 
     const body = document.createElement("div");
     body.className = "nf-kp-body";
@@ -283,7 +325,7 @@ function openKeyPicker(node) {
     closeBtn.className = "nf-kp-btn";
     closeBtn.textContent = "Close";
     footer.append(status, addBtn, closeBtn);
-    panel.append(header, body, footer);
+    panel.append(header, info, body, footer);
     overlay.append(panel);
 
     const selected = new Set();
@@ -345,9 +387,8 @@ function openKeyPicker(node) {
     };
 
     document.body.append(overlay);
-    const loading = parsed ? loadSections(fileValue) : loadJson(fileValue);
-    loading
-        .then((data) => {
+    loadPickerData(fileValue, parsed)
+        .then(({ data, size }) => {
             body.textContent = "";
             if (parsed) {
                 renderSections(body, data, ctx);
@@ -357,11 +398,13 @@ function openKeyPicker(node) {
                 }
                 renderEntries(body, data, "", ctx);
             }
+            renderFileInfo(info, fileValue, size, parsed, data);
             refresh();
             setStatus("Click keys, then Add");
         })
         .catch((err) => {
             body.textContent = "";
+            info.textContent = "";
             setStatus(err.message, true);
         });
 }
@@ -405,7 +448,9 @@ app.registerExtension({
                 area.dataset.captureWheel = "true";
                 area.value = String(oldKeys.value ?? "");
                 this.widgets.splice(this.widgets.indexOf(oldKeys), 1);
-                const keys = this.addDOMWidget("keys", "custom", area, {
+                // Removing it from the list leaves its built-in textarea on the node, so dispose it too.
+                oldKeys.onRemove?.();
+                oldKeys.element?.remove();
                     getValue: () => area.value,
                     setValue: (v) => {
                         area.value = String(v ?? "");
