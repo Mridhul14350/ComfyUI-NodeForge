@@ -8,7 +8,7 @@ import { ensureCss, fitNodeSize, splitFile, viewUrl } from "./file_ui.js";
 const NODE_NAME = "NodeForgeLoadImage";
 const MAX_IMAGES = 10;
 const LIST_URL = "/nodeforge/load_image/list";
-const SAVED_ORDER = ["image", "images", "display"];
+const SAVED_ORDER = ["image", "images", "display", "file_path"];
 const SOURCE_OPTIONS = [
     ["all", "Both"],
     ["input", "Input"],
@@ -92,8 +92,8 @@ function setHidden(widget) {
     if (widget.element) widget.element.style.display = "none";
 }
 
-// The chosen paths, in pick order. Falls back to the legacy single 'image' value.
-function selectionOf(node) {
+// The chosen paths from the popup, in pick order. Falls back to the legacy single 'image' value.
+function pickedOf(node) {
     const lines = String(getWidget(node, "images")?.value ?? "")
         .split("\n")
         .map((line) => line.trim())
@@ -103,9 +103,16 @@ function selectionOf(node) {
     return legacy ? [`input/${legacy}`] : [];
 }
 
+// What the node runs on. A typed file_path wins over the picked images, as in the backend.
+function selectionOf(node) {
+    const typed = String(getWidget(node, "file_path")?.value ?? "").trim().replace(/\\/g, "/");
+    return typed ? [typed] : pickedOf(node);
+}
+
 function setSelection(node, values) {
     setWidgetValue(node, "images", values.join("\n"));
     setWidgetValue(node, "image", "");
+    setWidgetValue(node, "file_path", "");
 }
 
 function displayMode(node) {
@@ -209,7 +216,7 @@ function openImagePicker(anchor, node) {
     ensureCss();
     ensureImageCss();
 
-    const selected = [...selectionOf(node)];
+    const selected = [...pickedOf(node)];
     let files = [];
     let shown = [];
     let loaded = false;
@@ -441,18 +448,25 @@ app.registerExtension({
             // The grid/list toggle above drives this value, so the combo is hidden.
             const display = getWidget(this, "display");
             if (display) setHidden(display);
+            // Typing a path re-renders the preview and output pairs at once.
+            const filePath = getWidget(this, "file_path");
+            if (filePath) {
+                const previous = filePath.callback;
+                filePath.callback = (...args) => {
+                    previous?.apply(filePath, args);
+                    syncOutputs(this);
+                };
+            }
             syncOutputs(this);
             return result;
         };
 
         const onConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function () {
-            const saved = this.widgets_values;
-            // Older saves had only the single image value, so map them to the current layout.
-            const values =
-                Array.isArray(saved) && saved.length === SAVED_ORDER.length
-                    ? saved
-                    : [saved?.[0] ?? "", "", "grid"];
+            const saved = Array.isArray(this.widgets_values) ? this.widgets_values : [];
+            // Older saves have fewer values (only 'image', or no 'file_path'), so missing slots take their defaults.
+            const defaults = ["", "", "grid", ""];
+            const values = SAVED_ORDER.map((_, i) => (saved[i] !== undefined ? saved[i] : defaults[i]));
             this.widgets_values = values;
             const result = onConfigure?.apply(this, arguments);
             SAVED_ORDER.forEach((name, i) => setWidgetValue(this, name, values[i]));

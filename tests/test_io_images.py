@@ -91,3 +91,26 @@ def test_missing_file_is_reported_by_validate(inputs):
 
 def test_list_includes_input_and_output_images(inputs):
     assert list_images() == ["input/red.png", "input/sub/clear.png", "output/green.png"]
+
+
+def test_file_path_overrides_selected_images(inputs):
+    out = NodeForgeLoadImage().run(images="input/red.png", file_path="output/green.png")
+    assert tuple(out[0].shape) == (1, 5, 5, 3)
+    assert all(v is None for v in out[2:])
+
+
+def test_file_path_accepts_backslashes_and_surrounding_spaces(inputs):
+    out = NodeForgeLoadImage().run(images="", file_path="  output\\green.png  ")
+    assert tuple(out[0].shape) == (1, 5, 5, 3)
+
+
+def test_file_path_outside_input_and_output_is_rejected(inputs):
+    assert NodeForgeLoadImage.VALIDATE_INPUTS(file_path="input/../../secret.png") is not True
+    with pytest.raises(ValueError):
+        NodeForgeLoadImage().run(file_path="../secret.png")
+
+
+def test_is_changed_follows_file_path_content(inputs):
+    first = NodeForgeLoadImage.IS_CHANGED(file_path="output/green.png")
+    Image.new("RGB", (5, 5), (0, 0, 255)).save(inputs.parent / "output" / "green.png")
+    assert NodeForgeLoadImage.IS_CHANGED(file_path="output/green.png") != first

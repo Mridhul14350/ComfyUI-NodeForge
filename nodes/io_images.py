@@ -71,10 +71,15 @@ def resolve_image(choice: str) -> str:
     return path
 
 
-def selected_entries(images: str, image: str) -> list:
-    """Chosen paths from the newline list. Falls back to the legacy single
-    'image' value (a file in the input folder) when the list is empty."""
-    entries = [line.strip() for line in (images or "").splitlines() if line.strip()]
+def selected_entries(images: str, image: str, file_path: str = "") -> list:
+    """Chosen paths from the newline list. A non-empty 'file_path' overrides
+    the list (one image). Falls back to the legacy single 'image' value (a
+    file in the input folder) when the list is empty."""
+    typed = (file_path or "").strip().replace("\\", "/")
+    if typed:
+        entries = [typed]
+    else:
+        entries = [line.strip() for line in (images or "").splitlines() if line.strip()]
     if not entries and image:
         entries = [f"input/{image}"]
     if not entries:
@@ -112,6 +117,15 @@ class NodeForgeLoadImage:
                     ["grid", "list"],
                     {"default": "grid", "tooltip": "Preview layout in the node."},
                 ),
+                "file_path": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "Optional. A path under input or output, e.g. "
+                        "output/folder/frame.png. When set, it is used instead of the "
+                        "selected images.",
+                    },
+                ),
             },
         }
 
@@ -127,10 +141,10 @@ class NodeForgeLoadImage:
         "Unused slots are empty. A mask is 1 where the picture is transparent."
     )
 
-    def run(self, image="", images="", display="grid"):
+    def run(self, image="", images="", display="grid", file_path=""):
         loaded = [
             load_image_tensors(resolve_image(choice))
-            for choice in selected_entries(images, image)
+            for choice in selected_entries(images, image, file_path)
         ]
         outputs = []
         for i in range(MAX_IMAGES):
@@ -141,10 +155,10 @@ class NodeForgeLoadImage:
         return tuple(outputs)
 
     @classmethod
-    def IS_CHANGED(cls, image="", images="", display="grid"):
+    def IS_CHANGED(cls, image="", images="", display="grid", file_path=""):
         digest = hashlib.sha256()
         try:
-            entries = selected_entries(images, image)
+            entries = selected_entries(images, image, file_path)
         except ValueError:
             return float("nan")
         for choice in entries:
@@ -157,9 +171,9 @@ class NodeForgeLoadImage:
         return digest.hexdigest()
 
     @classmethod
-    def VALIDATE_INPUTS(cls, image="", images="", display="grid"):
+    def VALIDATE_INPUTS(cls, image="", images="", display="grid", file_path=""):
         try:
-            for choice in selected_entries(images, image):
+            for choice in selected_entries(images, image, file_path):
                 resolve_image(choice)
         except (ValueError, FileNotFoundError) as e:
             return str(e)

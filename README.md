@@ -114,6 +114,7 @@ Each image gets its own output pair. The backend always has 10 pairs; the node s
 |---|---|---|
 | `images` | empty | Selected files, one per line, set by the popup. Entries start with `input/` or `output/`. |
 | `display` | `grid` | `grid` or `list`. Set by the grid/list button on the node. Controls the preview only. |
+| `file_path` | empty | Optional. A path under `input/` or `output/` (backslashes are accepted). When set, it is used instead of `images`. |
 
 **Outputs**
 
