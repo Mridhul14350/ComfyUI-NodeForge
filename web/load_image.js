@@ -3,7 +3,7 @@
 
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { ensureCss, splitFile, viewUrl } from "./file_ui.js";
+import { ensureCss, fitNodeSize, splitFile, viewUrl } from "./file_ui.js";
 
 const NODE_NAME = "NodeForgeLoadImage";
 const MAX_IMAGES = 10;
@@ -137,7 +137,7 @@ function syncOutputs(node) {
     }
 
     node.nfRefresh?.();
-    node.setSize?.(node.computeSize());
+    fitNodeSize(node);
     node.setDirtyCanvas?.(true, true);
 }
 

@@ -126,6 +126,39 @@ Unused pairs are empty (`None`). Selecting no image, or more than 10, is an erro
 
 The node re-runs when any selected file content changes. Requires `torch`, `numpy` and `Pillow`, which ComfyUI already provides.
 
+### NodeForge: Variables
+
+Category: `NodeForge/Text`
+
+Sets named text values. Click **+ Add variable** to add a row, and × to remove it. Each row has a **name** and a **value**. The count is unlimited.
+
+Names may use letters, digits, `_` and `-`. Rows with a blank name are skipped. A name used twice is an error.
+
+**Increment:** the small **+step** box adds a whole number to the value on each run. Leave it blank or `0` for no change. With value `1` and step `2`, the runs give `1`, `3`, `5`. A negative step counts down. Leading zeros are kept, so `001` with step `1` gives `002`. The value must be a whole number. The count is kept by the server and restarts from the typed value when you change it or restart ComfyUI.
+
+**Output:** `variables` (`STRING`), a JSON object of name to value. Connect it to **NodeForge: ResolveString**.
+
+### NodeForge: ResolveString
+
+Category: `NodeForge/Text`
+
+Replaces `%Variables.name%` and `%date:FORMAT%` tokens in one or more strings. Click **+ Add string** to add a text box, and × to remove it. Up to 16 strings.
+
+**Inputs**
+
+| Input | Notes |
+|---|---|
+| `strings` | One text box per string. Set by the node, not a socket. |
+| `variables` | Optional. Connect the output of **NodeForge: Variables**. Without it, any token is an error. |
+
+**Outputs:** `string_1` … `string_N`, one per string box, `STRING`. The number of outputs follows the number of boxes.
+
+Example: a Variables row `folder_001` = `tmp001`, and a string `output/%Variables.folder_001%/prompt_00001.txt` resolves to `output/tmp001/prompt_00001.txt`. Connect `string_1` to a Save node's `filename_prefix` to use the result there.
+
+Date tokens use the same format letters as core ComfyUI: `yyyy`, `yy`, `MM`, `dd`, `hh` (24-hour), `mm`, `ss`. For example `%date:yyyy-MM-dd_hh-mm-ss%` gives `2026-11-18_02-23-10`. The time is the server's local time when the queue runs, and all strings in one run share the same time.
+
+Tokens are replaced once (values are not expanded again). Dates are replaced first, so a variable value that contains `%date:...%` stays as typed. An unknown name, or a malformed input, stops the run with an error that names the node.
+
 ## Install
 
 Copy this folder into `ComfyUI/custom_nodes/` and restart ComfyUI. No extra packages are needed.

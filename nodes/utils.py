@@ -1,8 +1,16 @@
 """Shared file helpers for NodeForge. No node classes here."""
 
+import datetime
+import json
 import os
+import re
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
+VARIABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
+WHOLE_NUMBER_RE = re.compile(r"-?\d+")
+VARIABLE_TOKEN_RE = re.compile(r"%Variables\.([A-Za-z0-9_-]+)%")
+DATE_TOKEN_RE = re.compile(r"%date:([^%]*)%")
+DATE_FORMAT_RE = re.compile(r"yyyy|yy|MM|dd|hh|mm|ss")
 
 
 def resolve_under(base_dir: str, rel_path: str, label: str) -> str:
@@ -58,3 +66,130 @@ def read_text_file(path: str) -> str:
         return raw.decode("utf-8-sig")
     except UnicodeDecodeError as e:
         raise ValueError(f"file is not UTF-8 text: {path} ({e})") from e
+
+
+def _load_json(text: str, label: str, what: str):
+    try:
+        return json.loads(text)
+    except ValueError as e:
+        raise ValueError(f"{label}: {what} is not valid JSON ({e})") from e
+
+
+def variable_rows(text: str, label: str) -> list:
+    """Parse the Variables editor's JSON list of {"name", "value", "step"} rows.
+    Returns (name, value, step) tuples. Rows with a blank name are skipped.
+    A blank or missing step means 0 (no increment)."""
+    rows = _load_json(text, label, "variables")
+    if not isinstance(rows, list):
+        raise ValueError(f"{label}: variables must be a list of name/value rows")
+    parsed = []
+    names = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError(f"{label}: every variable row must be an object")
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        if not VARIABLE_NAME_RE.fullmatch(name):
+            raise ValueError(
+                f"{label}: variable name '{name}' may only use letters, digits, '_' and '-'"
+            )
+        if name in names:
+            raise ValueError(f"{label}: variable '{name}' is set more than once")
+        names.add(name)
+        value = row.get("value")
+        value = "" if value is None else str(value)
+        step = _parse_step(row.get("step"), label, name)
+        if step and not WHOLE_NUMBER_RE.fullmatch(value):
+            raise ValueError(
+                f"{label}: variable '{name}' has a step, so its value must be a whole number, got '{value}'"
+            )
+        parsed.append((name, value, step))
+    return parsed
+
+
+def _parse_step(raw, label: str, name: str) -> int:
+    if raw is None or str(raw).strip() == "":
+        return 0
+    text = str(raw).strip()
+    if not WHOLE_NUMBER_RE.fullmatch(text):
+        raise ValueError(f"{label}: step for '{name}' must be a whole number, got '{text}'")
+    return int(text)
+
+
+def variables_from_rows(text: str, label: str) -> dict:
+    """Build {name: value} from the Variables editor's rows, without increments."""
+    return {name: value for name, value, _step in variable_rows(text, label)}
+
+
+def apply_increments(rows: list, node_id: str, state: dict) -> dict:
+    """Build {name: value} for one run. A row with a step outputs its value on
+    the first run, then value + step * (runs since). `state` keeps (typed value,
+    last number) per node and name; if the typed value changes, the count restarts."""
+    values = {}
+    for name, value, step in rows:
+        if not step:
+            values[name] = value
+            continue
+        key = (node_id, name)
+        previous = state.get(key)
+        if previous and previous[0] == value:
+            number = previous[1] + step
+        else:
+            number = int(value)
+        state[key] = (value, number)
+        digits = value.lstrip("-")
+        width = len(digits) if digits.startswith("0") and len(digits) > 1 else 0
+        values[name] = f"{number:0{width}d}"
+    return values
+
+
+def variables_from_json(text: str, label: str) -> dict:
+    """Read the {name: value} JSON that NodeForge: Variables outputs.
+    Empty text means no variables."""
+    if not text.strip():
+        return {}
+    data = _load_json(text, label, "variables input")
+    if not isinstance(data, dict) or not all(isinstance(v, str) for v in data.values()):
+        raise ValueError(f"{label}: variables input must be a JSON object of text values")
+    return data
+
+
+def strings_from_json(text: str, label: str) -> list:
+    """Read the JSON list of input strings that NodeForge: ResolveString edits."""
+    data = _load_json(text, label, "strings")
+    if not isinstance(data, list) or not all(isinstance(s, str) for s in data):
+        raise ValueError(f"{label}: strings must be a list of text values")
+    return data
+
+
+def resolve_dates(text: str, now: datetime.datetime) -> str:
+    """Replace each %date:FORMAT% token with the time `now`, using the same
+    tokens as core ComfyUI (yyyy, yy, MM, dd, hh, mm, ss). Other characters in
+    FORMAT are copied as they are."""
+    stamps = {
+        "yyyy": f"{now.year:04d}",
+        "yy": f"{now.year % 100:02d}",
+        "MM": f"{now.month:02d}",
+        "dd": f"{now.day:02d}",
+        "hh": f"{now.hour:02d}",
+        "mm": f"{now.minute:02d}",
+        "ss": f"{now.second:02d}",
+    }
+
+    def replace(match):
+        return DATE_FORMAT_RE.sub(lambda m: stamps[m.group(0)], match.group(1))
+
+    return DATE_TOKEN_RE.sub(replace, text)
+
+
+def resolve_variables(text: str, variables: dict, label: str) -> str:
+    """Replace each %Variables.name% token with its value. An unknown name is an error."""
+
+    def replace(match):
+        name = match.group(1)
+        if name not in variables:
+            raise ValueError(f"{label}: unknown variable '{name}'")
+        return variables[name]
+
+    return VARIABLE_TOKEN_RE.sub(replace, text)

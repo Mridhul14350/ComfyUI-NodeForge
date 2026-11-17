@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { buildFileUi, ensureCss } from "./file_ui.js";
+import { buildFileUi, ensureCss, fitNodeSize } from "./file_ui.js";
 
 const NODE_NAME = "NodeForgeLoadFile";
 const MAX_OUTPUTS = 16;
@@ -108,8 +108,58 @@ function syncOutputs(node) {
     });
 
     node.nfRefreshFileBox?.();
-    node.setSize?.(node.computeSize());
+    fitNodeSize(node);
     node.setDirtyCanvas?.(true, true);
+}
+
+// Labeled, editable keys box: header with count and Clear, then a textarea that fills the widget.
+function buildKeysBox(initial) {
+    const root = document.createElement("div");
+    root.className = "nf-keys-box";
+    const head = document.createElement("div");
+    head.className = "nf-keys-head";
+    const label = document.createElement("span");
+    label.className = "nf-keys-label";
+    label.textContent = "keys";
+    const count = document.createElement("span");
+    count.className = "nf-keys-count";
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "nf-keys-clear";
+    clear.textContent = "Clear";
+    clear.title = "Remove all keys";
+    head.append(label, count, clear);
+
+    const area = document.createElement("textarea");
+    area.className = "nf-keys";
+    area.placeholder = "name\nmodels.0.name";
+    area.spellcheck = false;
+    // ComfyUI forwards wheel to the canvas (zoom) unless this marker is set and the element is focused.
+    area.dataset.captureWheel = "true";
+
+    const refreshCount = () => {
+        const n = area.value.split("\n").filter((line) => line.trim()).length;
+        count.textContent = `${n} key${n === 1 ? "" : "s"}`;
+    };
+    area.addEventListener("input", refreshCount);
+    // Bubbles to the widget element, where the node listens and re-syncs outputs.
+    clear.onclick = () => {
+        area.value = "";
+        refreshCount();
+        area.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+
+    root.append(head, area);
+    const box = {
+        root,
+        area,
+        set(value) {
+            area.value = value;
+            refreshCount();
+        },
+    };
+    box.set(initial);
+    return box;
 }
 
 function currentKeys(node) {
@@ -437,26 +487,18 @@ app.registerExtension({
                 this.nfRefreshFileBox = refresh;
                 refresh();
             }
-            // Replace the built-in text widget so the Pixaroma-style textarea CSS applies.
+            // Replace the built-in text widget with a labeled box so the Pixaroma-style CSS applies.
             const oldKeys = getWidget(this, "keys");
             if (oldKeys) {
-                const area = document.createElement("textarea");
-                area.className = "nf-keys";
-                area.placeholder = "name\nmodels.0.name";
-                area.spellcheck = false;
-                // ComfyUI forwards wheel to the canvas (zoom) unless this marker is set and the element is focused.
-                area.dataset.captureWheel = "true";
-                area.value = String(oldKeys.value ?? "");
+                const keysBox = buildKeysBox(String(oldKeys.value ?? ""));
                 this.widgets.splice(this.widgets.indexOf(oldKeys), 1);
                 // Removing it from the list leaves its built-in textarea on the node, so dispose it too.
                 oldKeys.onRemove?.();
                 oldKeys.element?.remove();
-                const keys = this.addDOMWidget("keys", "custom", area, {
-                    getValue: () => area.value,
-                    setValue: (v) => {
-                        area.value = String(v ?? "");
-                    },
-                    getMinHeight: () => 60,
+                const keys = this.addDOMWidget("keys", "custom", keysBox.root, {
+                    getValue: () => keysBox.area.value,
+                    setValue: (v) => keysBox.set(String(v ?? "")),
+                    getMinHeight: () => 110,
                 });
                 keys.nfComputeSize = keys.computeSize;
             }

@@ -77,8 +77,31 @@ summary.nf-kp-row::-webkit-details-marker { display:none; }
 .nf-lf-off:hover, .nf-lf-off button:disabled:hover { border-color:#3a3a3a; filter:none; }
 .nf-kp-info { display:flex; flex-wrap:wrap; gap:4px 14px; padding:6px 12px; border-bottom:1px solid #333; font-size:11px; color:#9a9a9a; }
 .nf-kp-info span { white-space:nowrap; }
-.nf-keys { box-sizing:border-box; width:100%; background:#1d1d1d; color:#ddd; border:1px solid #444; border-radius:4px; padding:6px 8px; font:11px ui-monospace, Consolas, monospace; line-height:1.4; resize:vertical; min-height:44px; }
-.nf-keys:focus { outline:none; border-color:var(--nf-acc); }
+.nf-keys-box { --nf-acc:${NF_ACCENT}; display:flex; flex-direction:column; gap:4px; box-sizing:border-box; width:100%; height:100%; padding:0 8px; font-size:11px; }
+.nf-keys-head { display:flex; align-items:center; gap:8px; color:#9a9a9a; }
+.nf-keys-label { color:#ddd; font-size:11px; }
+.nf-keys-count { flex:1; text-align:right; font-size:10px; color:#8a8a8a; }
+.nf-keys-clear { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.16); border-radius:4px; padding:2px 8px; color:#ddd; font-size:10px; cursor:pointer; }
+.nf-keys-clear:hover { border-color:var(--nf-acc); color:#fff; }
+.nf-keys { flex:1 1 auto; min-height:60px; box-sizing:border-box; width:100%; background:#1d1d1d; color:#ddd; border:1px solid #3a3a3a; border-radius:5px; padding:6px 8px; font:11px ui-monospace, Consolas, monospace; line-height:1.45; resize:none; outline:none; scrollbar-width:thin; scrollbar-color:#444 transparent; }
+.nf-keys:focus { border-color:var(--nf-acc); }
+.nf-var-root { --nf-acc:${NF_ACCENT}; display:flex; flex-direction:column; gap:4px; box-sizing:border-box; width:100%; padding:0 8px; font-size:11px; }
+.nf-var-head { display:flex; align-items:center; gap:8px; color:#ddd; }
+.nf-var-count { flex:1; text-align:right; font-size:10px; color:#8a8a8a; }
+.nf-var-list { display:flex; flex-direction:column; gap:4px; max-height:260px; overflow:auto; scrollbar-width:thin; scrollbar-color:#444 transparent; }
+.nf-var-row { display:flex; align-items:flex-start; gap:4px; }
+.nf-var-name, .nf-var-value, .nf-var-text { box-sizing:border-box; min-width:0; background:#1d1d1d; color:#ddd; border:1px solid #3a3a3a; border-radius:5px; padding:4px 6px; font:11px ui-monospace, Consolas, monospace; outline:none; }
+.nf-var-name { flex:0 0 35%; }
+.nf-var-value { flex:1 1 auto; }
+.nf-var-step { flex:0 0 52px; width:52px; box-sizing:border-box; min-width:0; background:#1d1d1d; color:#ddd; border:1px solid #3a3a3a; border-radius:5px; padding:4px 4px; font:11px ui-monospace, Consolas, monospace; outline:none; }
+.nf-var-step:focus { border-color:var(--nf-acc); }
+.nf-var-text { flex:1 1 auto; min-height:44px; resize:vertical; line-height:1.4; }
+.nf-var-name:focus, .nf-var-value:focus, .nf-var-text:focus { border-color:var(--nf-acc); }
+.nf-var-del { flex:0 0 auto; width:22px; height:22px; padding:0; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.16); border-radius:4px; color:#ddd; font-size:13px; line-height:1; cursor:pointer; }
+.nf-var-del:hover { border-color:#e0a33e; color:#fff; }
+.nf-var-add { align-self:flex-start; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.16); border-radius:5px; padding:3px 10px; color:#ddd; font-size:11px; cursor:pointer; }
+.nf-var-add:hover:not(:disabled) { border-color:var(--nf-acc); color:#fff; }
+.nf-var-add:disabled { opacity:.4; cursor:default; }
 `;
 
 function el(tag, className, text) {
@@ -94,6 +117,12 @@ export function ensureCss() {
     style.id = "nf-ui-css";
     style.textContent = CSS;
     document.head.append(style);
+}
+
+// Grow the node enough for its content, but keep a size the user chose.
+export function fitNodeSize(node) {
+    const [w, h] = node.computeSize();
+    node.setSize?.([Math.max(node.size[0], w), Math.max(node.size[1], h)]);
 }
 
 // "input/notes/a.json" -> source "input", folder "input/notes", name "a.json".
@@ -343,7 +372,7 @@ export function buildFileUi(node, { fileWidget, onPickKeys, keyCount, keysVisibl
         pick.disabled = !!computed?.linked;
         pick.title = computed?.linked ? "Pick keys needs a typed file_path, not a linked input" : "Choose keys to split";
         pick.style.display = keysVisible() ? "" : "none";
-        node.setSize?.(node.computeSize());
+        fitNodeSize(node);
     }
 
     function setFile(value) {

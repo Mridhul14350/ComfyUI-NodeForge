@@ -1,16 +1,21 @@
 from .nodes.io_files import NodeForgeLoadFile, read_text_sections
 from .nodes.io_images import NodeForgeLoadImage, list_images
+from .nodes.variables import NodeForgeResolveString, NodeForgeVariables
 
 WEB_DIRECTORY = "./web"
 
 NODE_CLASS_MAPPINGS = {
     "NodeForgeLoadFile": NodeForgeLoadFile,
     "NodeForgeLoadImage": NodeForgeLoadImage,
+    "NodeForgeVariables": NodeForgeVariables,
+    "NodeForgeResolveString": NodeForgeResolveString,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "NodeForgeLoadFile": "NodeForge: Load File",
     "NodeForgeLoadImage": "NodeForge: Load Image",
+    "NodeForgeVariables": "NodeForge: Variables",
+    "NodeForgeResolveString": "NodeForge: ResolveString",
 }
 
 
