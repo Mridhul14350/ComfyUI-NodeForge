@@ -97,7 +97,7 @@ export function ensureCss() {
 }
 
 // "input/notes/a.json" -> source "input", folder "input/notes", name "a.json".
-function splitFile(value) {
+export function splitFile(value) {
     const text = String(value ?? "");
     const parts = text.split("/");
     const source = parts.shift() === "output" ? "output" : "input";
@@ -113,7 +113,7 @@ function splitFile(value) {
     };
 }
 
-function viewUrl(file, small = false) {
+export function viewUrl(file, small = false) {
     const params = new URLSearchParams({ filename: file.name, type: file.source, subfolder: file.subfolder });
     if (small) params.set("preview", "webp;50");
     return api.apiURL(`/view?${params}`);

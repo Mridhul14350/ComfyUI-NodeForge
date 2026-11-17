@@ -451,6 +451,7 @@ app.registerExtension({
                 // Removing it from the list leaves its built-in textarea on the node, so dispose it too.
                 oldKeys.onRemove?.();
                 oldKeys.element?.remove();
+                const keys = this.addDOMWidget("keys", "custom", area, {
                     getValue: () => area.value,
                     setValue: (v) => {
                         area.value = String(v ?? "");
