@@ -3,4 +3,5 @@ __pycache__/
 .pytest_cache/
 
 AGENTS.md
+NODE_UI_GUIDE.md
 docs/
