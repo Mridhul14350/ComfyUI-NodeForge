@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from nodes.variables import MAX_STRINGS, NodeForgeResolveString, NodeForgeVariables
+from nodes.variables import MAX_CHOICES, MAX_STRINGS, NodeForgeResolveString, NodeForgeVariables
 from nodes.utils import resolve_dates, resolve_variables, variable_rows, variables_from_rows
 
 
@@ -15,7 +15,7 @@ def test_variables_node_outputs_json_object_and_skips_blank_names():
             {"name": "empty", "value": ""},
         ]
     )
-    (out,) = NodeForgeVariables().run(rows)
+    out, *_ = NodeForgeVariables().run(rows)
     assert json.loads(out) == {"folder_001": "tmp001", "empty": ""}
 
 
@@ -35,8 +35,72 @@ def test_variables_rejects_malformed_json():
         variables_from_rows("[{", "t")
 
 
+def _choice_row(**extra):
+    row = {
+        "name": "mode",
+        "type": "choice",
+        "selected": "Reference only",
+        "options": [
+            {"label": "Scene only", "value": "scene prompt"},
+            {"label": "Reference only", "value": "ref prompt"},
+        ],
+    }
+    row.update(extra)
+    return row
+
+
+def test_choice_row_outputs_the_selected_option_value():
+    assert variable_rows(json.dumps([_choice_row()]), "t") == [("mode", "ref prompt", 0)]
+    out, *_ = NodeForgeVariables().run(json.dumps([_choice_row(selected="Scene only")]))
+    assert json.loads(out) == {"mode": "scene prompt"}
+
+
+def test_each_choice_row_gets_its_own_output_in_row_order():
+    rows = [
+        {"name": "shot", "value": "wide", "step": ""},
+        _choice_row(name="mode", selected="Scene only"),
+        {"name": "", "type": "choice", "selected": "x", "options": [{"label": "x", "value": "y"}]},
+        _choice_row(name="style", selected="Reference only"),
+    ]
+    out = NodeForgeVariables().run(json.dumps(rows))
+    assert len(out) == 1 + MAX_CHOICES
+    assert json.loads(out[0]) == {"mode": "scene prompt", "shot": "wide", "style": "ref prompt"}
+    assert out[1] == "Scene only"
+    assert out[2] == "Reference only"
+    assert out[3:] == (None,) * (MAX_CHOICES - 2)
+
+
+def test_choice_outputs_are_none_without_choice_rows():
+    out = NodeForgeVariables().run(json.dumps([{"name": "a", "value": "1"}]))
+    assert out[1:] == (None,) * MAX_CHOICES
+
+
+def test_choice_outputs_reject_more_than_max_choices():
+    rows = [_choice_row(name=f"c{i}") for i in range(MAX_CHOICES + 1)]
+    with pytest.raises(ValueError, match="at most 8 choice variables"):
+        NodeForgeVariables().run(json.dumps(rows))
+
+
+def test_choice_row_rejects_selected_label_missing_from_options():
+    with pytest.raises(ValueError, match="'mode' has no option labelled 'Missing'"):
+        variable_rows(json.dumps([_choice_row(selected="Missing")]), "t")
+
+
+def test_choice_row_rejects_duplicate_option_labels():
+    options = [{"label": "a", "value": "1"}, {"label": "a", "value": "2"}]
+    with pytest.raises(ValueError, match="option 'a' of 'mode' is listed more than once"):
+        variable_rows(json.dumps([_choice_row(options=options, selected="a")]), "t")
+
+
+def test_choice_row_needs_options_and_no_step():
+    with pytest.raises(ValueError, match="needs at least one option"):
+        variable_rows(json.dumps([_choice_row(options=[], selected="")]), "t")
+    with pytest.raises(ValueError, match="cannot have a step"):
+        variable_rows(json.dumps([_choice_row(step="1")]), "t")
+
+
 def _run_variables(rows, node_id):
-    (out,) = NodeForgeVariables().run(json.dumps(rows), unique_id=node_id)
+    out, *_ = NodeForgeVariables().run(json.dumps(rows), unique_id=node_id)
     return json.loads(out)
 
 

@@ -7,6 +7,7 @@ import uuid
 
 from .utils import (
     apply_increments,
+    choice_labels,
     resolve_dates,
     resolve_variables,
     strings_from_json,
@@ -15,6 +16,7 @@ from .utils import (
 )
 
 MAX_STRINGS = 16
+MAX_CHOICES = 8
 VARIABLES_LABEL = "NodeForge: Variables"
 RESOLVE_LABEL = "NodeForge: ResolveString"
 
@@ -25,8 +27,8 @@ INCREMENT_STATE = {}
 class NodeForgeVariables:
     CATEGORY = "NodeForge/Text"
     FUNCTION = "run"
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("variables",)
+    RETURN_TYPES = ("STRING",) * (1 + MAX_CHOICES)
+    RETURN_NAMES = ("variables",) + tuple(f"v_choice_{i + 1}" for i in range(MAX_CHOICES))
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -47,7 +49,12 @@ class NodeForgeVariables:
     def run(self, data, unique_id=None):
         rows = variable_rows(data, VARIABLES_LABEL)
         values = apply_increments(rows, str(unique_id), INCREMENT_STATE)
-        return (json.dumps(values),)
+        choices = choice_labels(data, VARIABLES_LABEL)
+        if len(choices) > MAX_CHOICES:
+            raise ValueError(
+                f"{VARIABLES_LABEL}: at most {MAX_CHOICES} choice variables, got {len(choices)}"
+            )
+        return (json.dumps(values), *choices, *([None] * (MAX_CHOICES - len(choices))))
 
 
 class NodeForgeResolveString:

@@ -79,10 +79,15 @@ def variable_rows(text: str, label: str) -> list:
     """Parse the Variables editor's JSON list of {"name", "value", "step"} rows.
     Returns (name, value, step) tuples. Rows with a blank name are skipped.
     A blank or missing step means 0 (no increment)."""
+    return [(name, value, step) for name, value, step, _choice in _parse_rows(text, label)]
+
+
+def _parse_rows(text: str, label: str) -> list:
+    """Return (name, value, step, choice label) tuples. The choice label is None for value rows."""
     rows = _load_json(text, label, "variables")
     if not isinstance(rows, list):
         raise ValueError(f"{label}: variables must be a list of name/value rows")
-    parsed = []
+    named = []
     names = set()
     for row in rows:
         if not isinstance(row, dict):
@@ -97,6 +102,23 @@ def variable_rows(text: str, label: str) -> list:
         if name in names:
             raise ValueError(f"{label}: variable '{name}' is set more than once")
         names.add(name)
+        named.append((name, row))
+
+    choices = {name: row for name, row in named if row.get("type") == "choice"}
+    resolved = {}  # name -> (selected label, value)
+    for name, row in choices.items():
+        options = _options(row, label, name)
+        selected = str(row.get("selected") or "")
+        if selected not in options:
+            raise ValueError(f"{label}: choice variable '{name}' has no option labelled '{selected}'")
+        resolved[name] = (selected, options[selected])
+
+    parsed = []
+    for name, row in named:
+        if name in resolved:
+            selected, value = resolved[name]
+            parsed.append((name, value, 0, selected))
+            continue
         value = row.get("value")
         value = "" if value is None else str(value)
         step = _parse_step(row.get("step"), label, name)
@@ -104,8 +126,29 @@ def variable_rows(text: str, label: str) -> list:
             raise ValueError(
                 f"{label}: variable '{name}' has a step, so its value must be a whole number, got '{value}'"
             )
-        parsed.append((name, value, step))
+        parsed.append((name, value, step, None))
     return parsed
+
+
+def _options(row: dict, label: str, name: str) -> dict:
+    """Return {option label: value} for a choice row. Labels must be present and unique."""
+    if _parse_step(row.get("step"), label, name):
+        raise ValueError(f"{label}: choice variable '{name}' cannot have a step")
+    options = row.get("options")
+    if not isinstance(options, list) or not options:
+        raise ValueError(f"{label}: choice variable '{name}' needs at least one option")
+    values = {}
+    for option in options:
+        if not isinstance(option, dict):
+            raise ValueError(f"{label}: every option of '{name}' must be an object")
+        option_label = str(option.get("label") or "")
+        if not option_label.strip():
+            raise ValueError(f"{label}: every option of '{name}' needs a label")
+        if option_label in values:
+            raise ValueError(f"{label}: option '{option_label}' of '{name}' is listed more than once")
+        option_value = option.get("value")
+        values[option_label] = "" if option_value is None else str(option_value)
+    return values
 
 
 def _parse_step(raw, label: str, name: str) -> int:
@@ -115,6 +158,11 @@ def _parse_step(raw, label: str, name: str) -> int:
     if not WHOLE_NUMBER_RE.fullmatch(text):
         raise ValueError(f"{label}: step for '{name}' must be a whole number, got '{text}'")
     return int(text)
+
+
+def choice_labels(text: str, label: str) -> list:
+    """Return the selected option label of each choice row, in row order. Value rows are left out."""
+    return [choice for _name, _value, _step, choice in _parse_rows(text, label) if choice is not None]
 
 
 def variables_from_rows(text: str, label: str) -> dict:

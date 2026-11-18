@@ -1,5 +1,7 @@
 from .nodes.io_files import NodeForgeLoadFile, read_text_sections
+from .nodes.config_table import NodeForgeConfigTable
 from .nodes.io_images import NodeForgeLoadImage, list_images
+from .nodes.switch_case import NodeForgeSwitchCase
 from .nodes.variables import NodeForgeResolveString, NodeForgeVariables
 
 WEB_DIRECTORY = "./web"
@@ -9,6 +11,8 @@ NODE_CLASS_MAPPINGS = {
     "NodeForgeLoadImage": NodeForgeLoadImage,
     "NodeForgeVariables": NodeForgeVariables,
     "NodeForgeResolveString": NodeForgeResolveString,
+    "NodeForgeSwitchCase": NodeForgeSwitchCase,
+    "NodeForgeConfigTable": NodeForgeConfigTable,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -16,6 +20,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "NodeForgeLoadImage": "NodeForge: Load Image",
     "NodeForgeVariables": "NodeForge: Variables",
     "NodeForgeResolveString": "NodeForge: ResolveString",
+    "NodeForgeSwitchCase": "NodeForge: Switch Case",
+    "NodeForgeConfigTable": "NodeForge: Config Table",
 }
 
 
