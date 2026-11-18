@@ -103,16 +103,18 @@ function pickedOf(node) {
     return legacy ? [`input/${legacy}`] : [];
 }
 
-// What the node runs on. A typed file_path wins over the picked images, as in the backend.
+// What the node runs on: the picked images, then the typed file_path lines. Duplicates are skipped, as in the backend.
 function selectionOf(node) {
-    const typed = String(getWidget(node, "file_path")?.value ?? "").trim().replace(/\\/g, "/");
-    return typed ? [typed] : pickedOf(node);
+    const typed = String(getWidget(node, "file_path")?.value ?? "")
+        .split("\n")
+        .map((line) => line.trim().replace(/\\/g, "/"))
+        .filter(Boolean);
+    return [...new Set([...pickedOf(node), ...typed])];
 }
 
 function setSelection(node, values) {
     setWidgetValue(node, "images", values.join("\n"));
     setWidgetValue(node, "image", "");
-    setWidgetValue(node, "file_path", "");
 }
 
 function displayMode(node) {
@@ -229,6 +231,18 @@ function openImagePicker(anchor, node) {
     search.spellcheck = false;
     head.append(search);
     const tools = el("div", "nf-li-tools");
+    const upload = el("button", "nf-kp-btn", "Upload");
+    upload.type = "button";
+    const fileInput = el("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.hidden = true;
+    upload.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        fileInput.value = "";
+        if (file) uploadImage(file);
+    });
     const list = el("div", "nf-fb-list");
     const foot = el("div", "nf-kp-foot");
     const status = el("div", "nf-kp-status", "Loading images...");
@@ -320,7 +334,30 @@ function openImagePicker(anchor, node) {
             paintTools();
             renderRows();
         });
-        tools.replaceChildren(filter, view);
+        tools.replaceChildren(filter, view, upload, fileInput);
+    }
+
+    // Uploads go to ComfyUI's input folder and are not limited. The new file is picked only while the selection has room.
+    async function uploadImage(file) {
+        setStatus(`Uploading ${file.name}...`);
+        const body = new FormData();
+        body.append("image", file);
+        try {
+            const res = await api.fetchApi("/upload/image", { method: "POST", body });
+            if (!res.ok) throw new Error(String(res.status));
+            const data = await res.json();
+            const uploaded = splitFile([data.type, data.subfolder, data.name].filter(Boolean).join("/"));
+            if (!files.some((f) => f.value === uploaded.value)) files.push(uploaded);
+            if (!selected.includes(uploaded.value) && selected.length < MAX_IMAGES) selected.push(uploaded.value);
+            pickerSource = "all";
+            paintTools();
+            renderRows();
+            if (selected.length >= MAX_IMAGES && !selected.includes(uploaded.value)) {
+                setStatus(`Uploaded. Selection is full (${MAX_IMAGES} max)`, true);
+            }
+        } catch {
+            setStatus("Upload failed", true);
+        }
     }
 
     function gridCard(file, order) {
@@ -456,6 +493,7 @@ app.registerExtension({
                     previous?.apply(filePath, args);
                     syncOutputs(this);
                 };
+                filePath.element?.addEventListener("input", () => syncOutputs(this));
             }
             syncOutputs(this);
             return result;

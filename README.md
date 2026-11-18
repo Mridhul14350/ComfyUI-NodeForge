@@ -104,7 +104,7 @@ Category: `NodeForge/IO`
 
 Loads one or more images from the ComfyUI **input** and **output** folders (subfolders included, images only). Click **Select images** to open a multi-select popup. Click images to select them in order (up to 10), then press Enter or **Done**. Esc or **Cancel** closes the popup without changes.
 
-The popup has a filter (**Both**, **Input**, **Output**), a search box, and a **Grid** or **List** view. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session.
+The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload from computer** button. The uploaded image is saved to the ComfyUI input folder and added to the picked images. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session.
 
 Each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
 
@@ -114,7 +114,7 @@ Each image gets its own output pair. The backend always has 10 pairs; the node s
 |---|---|---|
 | `images` | empty | Selected files, one per line, set by the popup. Entries start with `input/` or `output/`. |
 | `display` | `grid` | `grid` or `list`. Set by the grid/list button on the node. Controls the preview only. |
-| `file_path` | empty | Optional. A path under `input/` or `output/` (backslashes are accepted). When set, it is used instead of `images`. |
+| `file_path` | empty | Optional. Paths under `input/` or `output/`, one per line (backslashes are accepted). They are added to the selected `images`, and duplicates are skipped. The total is capped at 10. |
 
 **Outputs**
 

@@ -71,25 +71,25 @@ def resolve_image(choice: str) -> str:
     return path
 
 
+def _path_lines(text: str) -> list:
+    return [line.strip().replace("\\", "/") for line in (text or "").splitlines() if line.strip()]
+
+
 def selected_entries(images: str, image: str, file_path: str = "") -> list:
-    """Chosen paths from the newline list. A non-empty 'file_path' overrides
-    the list (one image). Falls back to the legacy single 'image' value (a
-    file in the input folder) when the list is empty."""
-    typed = (file_path or "").strip().replace("\\", "/")
-    if typed:
-        entries = [typed]
-    else:
-        entries = [line.strip() for line in (images or "").splitlines() if line.strip()]
+    """Picked images (the newline list, or the legacy single 'image' value when
+    the list is empty) followed by the typed 'file_path' lines. Duplicates are
+    skipped, keeping the first occurrence."""
+    entries = _path_lines(images)
     if not entries and image:
         entries = [f"input/{image}"]
+    entries += _path_lines(file_path)
+    entries = list(dict.fromkeys(entries))
     if not entries:
         raise ValueError(f"{LABEL}: select at least one image")
     if len(entries) > MAX_IMAGES:
         raise ValueError(
             f"{LABEL}: select at most {MAX_IMAGES} images, got {len(entries)}"
         )
-    if len(set(entries)) != len(entries):
-        raise ValueError(f"{LABEL}: the same image is selected more than once")
     return entries
 
 
@@ -120,10 +120,11 @@ class NodeForgeLoadImage:
                 "file_path": (
                     "STRING",
                     {
+                        "multiline": True,
                         "default": "",
-                        "tooltip": "Optional. A path under input or output, e.g. "
-                        "output/folder/frame.png. When set, it is used instead of the "
-                        "selected images.",
+                        "tooltip": "Optional. Paths under input or output, one per line, "
+                        "e.g. output/folder/frame.png. They are added to the selected "
+                        f"images (up to {MAX_IMAGES} in total).",
                     },
                 ),
             },

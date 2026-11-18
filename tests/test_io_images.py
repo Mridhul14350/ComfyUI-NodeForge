@@ -70,12 +70,13 @@ def test_empty_selection_is_an_error(inputs):
 
 def test_more_than_ten_images_is_rejected(inputs):
     with pytest.raises(ValueError, match="at most 10"):
-        run_list(["input/red.png"] * (MAX_IMAGES + 1))
+        run_list([f"input/{i}.png" for i in range(MAX_IMAGES + 1)])
 
 
-def test_duplicate_selection_is_rejected(inputs):
-    with pytest.raises(ValueError, match="more than once"):
-        run_list(["input/red.png", "input/red.png"])
+def test_duplicate_selection_is_skipped(inputs):
+    out = run_list(["input/red.png", "input/red.png"])
+    assert tuple(out[0].shape) == (1, 2, 4, 3)
+    assert all(v is None for v in out[2:])
 
 
 def test_path_outside_input_and_output_is_rejected(inputs):
@@ -93,15 +94,29 @@ def test_list_includes_input_and_output_images(inputs):
     assert list_images() == ["input/red.png", "input/sub/clear.png", "output/green.png"]
 
 
-def test_file_path_overrides_selected_images(inputs):
+def test_file_path_lines_are_added_to_picked_images(inputs):
     out = NodeForgeLoadImage().run(images="input/red.png", file_path="output/green.png")
-    assert tuple(out[0].shape) == (1, 5, 5, 3)
-    assert all(v is None for v in out[2:])
+    assert tuple(out[0].shape) == (1, 2, 4, 3)
+    assert tuple(out[2].shape) == (1, 5, 5, 3)
+    assert all(v is None for v in out[4:])
 
 
-def test_file_path_accepts_backslashes_and_surrounding_spaces(inputs):
-    out = NodeForgeLoadImage().run(images="", file_path="  output\\green.png  ")
+def test_file_path_lines_work_without_picked_images(inputs):
+    out = NodeForgeLoadImage().run(images="", file_path="output/green.png\ninput/red.png")
     assert tuple(out[0].shape) == (1, 5, 5, 3)
+    assert tuple(out[2].shape) == (1, 2, 4, 3)
+
+
+def test_file_path_duplicates_of_picked_images_are_skipped(inputs):
+    out = NodeForgeLoadImage().run(images="input/red.png", file_path="input/red.png\noutput\\green.png")
+    assert tuple(out[2].shape) == (1, 5, 5, 3)
+    assert all(v is None for v in out[4:])
+
+
+def test_picked_and_typed_images_count_towards_the_limit(inputs):
+    picked = [f"input/{i}.png" for i in range(MAX_IMAGES)]
+    with pytest.raises(ValueError, match="at most 10"):
+        NodeForgeLoadImage().run(images="\n".join(picked), file_path="output/green.png")
 
 
 def test_file_path_outside_input_and_output_is_rejected(inputs):
