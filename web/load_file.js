@@ -487,7 +487,7 @@ app.registerExtension({
                 this.nfRefreshFileBox = refresh;
                 refresh();
             }
-            // Replace the built-in text widget with a labeled box so the Pixaroma-style CSS applies.
+            // Replace the built-in text widget with a labeled box so the node's CSS applies.
             const oldKeys = getWidget(this, "keys");
             if (oldKeys) {
                 const keysBox = buildKeysBox(String(oldKeys.value ?? ""));

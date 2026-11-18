@@ -8,7 +8,7 @@ Custom ComfyUI nodes for working with files and JSON.
 
 Category: `NodeForge/IO`
 
-Loads a text or JSON file from the ComfyUI **input** or **output** folder. Click the file box to open a browser with a filter, a small/large view toggle, thumbnails for images, a preview, and INPUT/OUTPUT badges with the folder path. Supported types: `.txt`, `.json`, `.md`, `.csv`, `.log`. The popup and node use a blue accent (`#4ea8ff`), styled after Pixaroma (MIT). Pixaroma-derived CSS and layout are adapted in `web/file_ui.js`.
+Loads a text or JSON file from the ComfyUI **input** or **output** folder. Click the file box to open a browser with a filter, a small/large view toggle, thumbnails for images, a preview, and INPUT/OUTPUT badges with the folder path. Supported types: `.txt`, `.json`, `.md`, `.csv`, `.log`. The popup and node use a blue accent (`#4ea8ff`).
 
 **Inputs**
 
@@ -104,7 +104,7 @@ Category: `NodeForge/IO`
 
 Loads one or more images from the ComfyUI **input** and **output** folders (subfolders included, images only). Click **Select images** to open a multi-select popup. Click images to select them in order (up to 10), then press Enter or **Done**. Esc or **Cancel** closes the popup without changes.
 
-The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload from computer** button. The uploaded image is saved to the ComfyUI input folder and added to the picked images. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session.
+The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload** button. The uploaded image is saved to the ComfyUI input folder. It is added to the picked images if there is room. Uploads are not limited by the 10-image cap, but the selection is. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session.
 
 Each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
 
