@@ -1,5 +1,5 @@
 import { app } from "../../scripts/app.js";
-import { ensureCss, fitNodeSize } from "./file_ui.js";
+import { ensureCss } from "./file_ui.js";
 
 const VARIABLES_NODE = "NodeForgeVariables";
 const RESOLVE_NODE = "NodeForgeResolveString";
@@ -7,6 +7,19 @@ const MAX_STRINGS = 16;
 
 function getWidget(node, name) {
     return node.widgets?.find((w) => w.name === name);
+}
+
+// Fit the node to its content in both directions. Width only grows, so a node the user widened keeps its width.
+function resizeToContent(node) {
+    const [w, h] = node.computeSize();
+    node.setSize?.([Math.max(node.size[0], w), h]);
+    node.setDirtyCanvas?.(true, true);
+}
+
+// Grow a textarea to show all of its text. The border is added back because sizing is border-box.
+function autoGrow(area) {
+    area.style.height = "auto";
+    area.style.height = `${area.scrollHeight + area.offsetHeight - area.clientHeight}px`;
 }
 
 function el(tag, className, text) {
@@ -67,7 +80,7 @@ function buildVariablesEditor(onChange) {
         const stepInput = el("input", "nf-var-step");
         stepInput.type = "number";
         stepInput.step = "1";
-        stepInput.placeholder = "+step";
+        stepInput.placeholder = "0";
         stepInput.title = "Add this to the value on each run (whole number, blank or 0 = off)";
         stepInput.value = step;
         const del = el("button", "nf-var-del", "×");
@@ -80,7 +93,11 @@ function buildVariablesEditor(onChange) {
         };
         nameInput.addEventListener("input", refresh);
         stepInput.addEventListener("input", onChange);
-        row.append(nameInput, valueInput, stepInput, del);
+        const line = el("div", "nf-var-line");
+        line.append(nameInput, valueInput, del);
+        const stepLine = el("div", "nf-var-stepline");
+        stepLine.append(el("span", "", "step"), stepInput);
+        row.append(line, stepLine);
         list.append(row);
         refresh();
         return nameInput;
@@ -95,9 +112,9 @@ function buildVariablesEditor(onChange) {
         root,
         get() {
             const rows = [...list.querySelectorAll(".nf-var-row")].map((row) => ({
-                name: row.children[0].value,
-                value: row.children[1].value,
-                step: row.children[2].value,
+                name: row.querySelector(".nf-var-name").value,
+                value: row.querySelector(".nf-var-value").value,
+                step: row.querySelector(".nf-var-step").value,
             }));
             return JSON.stringify(rows);
         },
@@ -108,12 +125,14 @@ function buildVariablesEditor(onChange) {
             }
             if (!list.children.length) addRow();
             refresh();
+            // Not laid out yet while the workflow loads, so measure again on the next frame.
+            requestAnimationFrame(onChange);
         },
     };
     return box;
 }
 
-// One textarea per string. The number of rows sets the number of outputs.
+// One textarea per string. The number of rows sets the number of outputs. Each textarea grows with its text.
 function buildStringsEditor(onChange) {
     const root = el("div", "nf-var-root");
     const head = el("div", "nf-var-head");
@@ -129,16 +148,21 @@ function buildStringsEditor(onChange) {
         count.textContent = `${rowCount()} / ${MAX_STRINGS}`;
         add.disabled = rowCount() >= MAX_STRINGS;
     };
+    const fitAll = () => list.querySelectorAll(".nf-var-text").forEach(autoGrow);
 
     const addRow = (text = "") => {
-        const row = el("div", "nf-var-row");
+        const row = el("div", "nf-var-row nf-var-row-text");
         const area = el("textarea", "nf-var-text");
-        area.rows = 2;
+        area.rows = 1;
         area.spellcheck = false;
         area.placeholder = "out/%Variables.folder_001%/prompt_00001.txt";
         // ComfyUI forwards wheel to the canvas (zoom) unless this marker is set and the element is focused.
         area.dataset.captureWheel = "true";
         area.value = text;
+        area.addEventListener("input", () => {
+            autoGrow(area);
+            onChange();
+        });
         const del = el("button", "nf-var-del", "×");
         del.type = "button";
         del.title = "Remove string";
@@ -150,6 +174,7 @@ function buildStringsEditor(onChange) {
         row.append(area, del);
         list.append(row);
         refresh();
+        autoGrow(area);
         return area;
     };
 
@@ -166,10 +191,14 @@ function buildStringsEditor(onChange) {
         },
         set(value) {
             list.replaceChildren();
-            const items = parseRows(value).slice(0, MAX_STRINGS);
-            for (const text of items) addRow(String(text ?? ""));
+            // Keep every saved string. Going over MAX_STRINGS is reported when the node runs.
+            for (const text of parseRows(value)) addRow(String(text ?? ""));
             if (!list.children.length) addRow();
             refresh();
+            requestAnimationFrame(() => {
+                fitAll();
+                onChange();
+            });
         },
         count: rowCount,
     };
@@ -191,8 +220,7 @@ function syncStringOutputs(node) {
         out.label = `string_${i + 1}`;
         out.type = "STRING";
     }
-    fitNodeSize(node);
-    node.setDirtyCanvas?.(true, true);
+    resizeToContent(node);
 }
 
 app.registerExtension({
@@ -203,13 +231,13 @@ app.registerExtension({
             nodeType.prototype.onNodeCreated = function () {
                 const result = onCreated?.apply(this, arguments);
                 ensureCss();
-                const editor = buildVariablesEditor(() => fitNodeSize(this));
+                const editor = buildVariablesEditor(() => resizeToContent(this));
                 swapForDom(this, "data", editor.root, {
                     getValue: () => editor.get(),
                     setValue: (v) => editor.set(v),
-                    getMinHeight: () => 70,
+                    getMinHeight: () => editor.root.scrollHeight,
                 });
-                fitNodeSize(this);
+                resizeToContent(this);
                 return result;
             };
         }
@@ -229,9 +257,9 @@ app.registerExtension({
                         editor.set(v);
                         syncStringOutputs(this);
                     },
-                    getMinHeight: () => 70,
+                    getMinHeight: () => editor.root.scrollHeight,
                 });
-                syncStringOutputs(this);
+                editor.set("[]");
                 return result;
             };
 

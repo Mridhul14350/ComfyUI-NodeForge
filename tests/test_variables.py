@@ -76,6 +76,13 @@ def test_is_changed_forces_rerun_only_when_a_step_is_set():
     assert NodeForgeVariables.IS_CHANGED(plain) == NodeForgeVariables.IS_CHANGED(plain)
 
 
+def test_resolve_is_changed_forces_rerun_only_when_a_date_token_is_present():
+    dated = json.dumps(["out/%date:yyyy%.txt"])
+    plain = json.dumps(["out/fixed.txt"])
+    assert NodeForgeResolveString.IS_CHANGED(dated) != NodeForgeResolveString.IS_CHANGED(dated)
+    assert NodeForgeResolveString.IS_CHANGED(plain) == NodeForgeResolveString.IS_CHANGED(plain)
+
+
 def test_resolve_replaces_tokens_and_keeps_other_text():
     text = "output/%Variables.folder_001%/prompt_%Variables.n-1%.txt %date:yyyy%"
     variables = {"folder_001": "tmp001", "n-1": "7"}

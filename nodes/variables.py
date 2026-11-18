@@ -63,6 +63,13 @@ class NodeForgeResolveString:
             "optional": {"variables": ("STRING", {"default": "", "forceInput": True})},
         }
 
+    @classmethod
+    def IS_CHANGED(cls, strings="[]", **_kwargs):
+        # %date:...% tokens change with the clock, so a cached result would show an old time.
+        if "%date:" in str(strings):
+            return uuid.uuid4().hex
+        return ""
+
     def run(self, strings, variables=""):
         items = strings_from_json(strings, RESOLVE_LABEL)
         if len(items) > MAX_STRINGS:
