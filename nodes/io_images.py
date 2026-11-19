@@ -59,8 +59,6 @@ def selected_entries(images: str, image: str, file_path: str = "") -> list:
         entries = [f"input/{image}"]
     entries += _path_lines(file_path)
     entries = list(dict.fromkeys(entries))
-    if not entries:
-        raise ValueError(f"{LABEL}: select at least one image")
     if len(entries) > MAX_IMAGES:
         raise ValueError(
             f"{LABEL}: select at most {MAX_IMAGES} images, got {len(entries)}"
@@ -148,6 +146,9 @@ class NodeForgeLoadImage:
 
     @classmethod
     def VALIDATE_INPUTS(cls, image="", images="", display="grid", file_path=""):
+        # ComfyUI passes None for a linked input during /prompt validation; its paths are checked when the node runs.
+        if images is None or file_path is None:
+            return True
         try:
             for choice in selected_entries(images, image, file_path):
                 resolve_image(choice)

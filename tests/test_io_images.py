@@ -63,9 +63,11 @@ def test_legacy_image_value_is_used_when_list_is_empty(inputs):
     assert tuple(out[0].shape) == (1, 2, 4, 3)
 
 
-def test_empty_selection_is_an_error(inputs):
-    with pytest.raises(ValueError, match="at least one"):
-        run_list([])
+def test_empty_selection_gives_empty_slots(inputs):
+    out = run_list([])
+    assert len(out) == 2 * MAX_IMAGES
+    assert all(v is None for v in out)
+    assert NodeForgeLoadImage.VALIDATE_INPUTS(images="", file_path="") is True
 
 
 def test_more_than_ten_images_is_rejected(inputs):
@@ -88,6 +90,10 @@ def test_path_outside_input_and_output_is_rejected(inputs):
 def test_missing_file_is_reported_by_validate(inputs):
     assert NodeForgeLoadImage.VALIDATE_INPUTS(images="input/missing.png") is not True
     assert NodeForgeLoadImage.VALIDATE_INPUTS(images="input/red.png") is True
+
+
+def test_linked_file_path_is_not_checked_during_validation(inputs):
+    assert NodeForgeLoadImage.VALIDATE_INPUTS(images=None, file_path=None) is True
 
 
 def test_list_includes_input_and_output_images(inputs):
