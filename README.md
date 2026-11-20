@@ -203,15 +203,16 @@ Looks up `env` in a table built on the node with buttons and fields, and sends e
 
 | Input | Notes |
 |---|---|
-| `env` | STRING. The block name to select, for example `prod`, `dev` or `plan_pro`. Matching is exact and case-sensitive. Whitespace around the value is ignored. |
+| `env` | STRING, shown as **output tag**. A dropdown that lists the tag names in the table, for example `prod`, `dev` or `plan_pro`. The list updates as tags are added, renamed or removed. Renaming the selected tag keeps it selected under the new name. Removing the selected tag clears the output tag. Matching is exact and case-sensitive. |
 | `table` | Edited with buttons and fields on the node (see below). Stored as text in the workflow. |
 
-**Outputs:** one per key, type `*`, labelled with the key name (for example `width`, `height`). The node shows only as many outputs as there are keys, up to 10. Values go out in the order of the keys. Renaming a key changes its output label. Outputs removed by deleting keys are dropped from the node, so reconnect any links to the outputs that remain.
+**Outputs:** output 1 is always `output_tag` (`STRING`): the selected output tag. After it come one output per key, type `*`, labelled with the key name (for example `width`, `height`). The node shows only as many key outputs as there are keys, up to 10. Values go out in the order of the keys. Renaming a key changes its output label. Outputs removed by deleting keys are dropped from the node, so reconnect any links to the outputs that remain.
 
 **Values:** each value is 1 word or up to 1000 words. The box stays one line tall and shows the start of the text. Click **⤢** beside a value to see or edit the full text in a popup. Values may contain line breaks. The table stores them as `\n` and a literal backslash as `\\`, so keep these escapes when editing the saved text by hand.
 
 **Editing the table on the node**
 
+- A new node starts empty: no tags, no keys, and a blank **output tag**. Add tags and keys, then pick the output tag from the dropdown.
 - **+ Add tag** creates a block such as `prod` or `dev`. Click a tag button to edit it. The tag name is a field, and **Remove tag** deletes it.
 - Under the tags, each key has a `key` field and a `value` field. **+ Add key** adds a key to every tag (up to 10). The × button removes it from every tag.
 - Fields turn red when a name is empty or duplicated, or a value is empty.

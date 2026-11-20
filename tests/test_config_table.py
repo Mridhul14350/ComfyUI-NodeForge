@@ -55,7 +55,12 @@ def test_more_than_ten_keys_raises():
         lookup("prod", f"keys: {keys}\n[prod]\n")
 
 
-def test_node_run_returns_ten_outputs_and_has_ten_named_slots():
+def test_node_run_returns_tag_then_ten_values_and_names_match():
     node = NodeForgeConfigTable()
-    assert len(node.run("dev", TABLE)) == MAX_KEYS
-    assert NodeForgeConfigTable.RETURN_NAMES == tuple(f"value_{i}" for i in range(1, MAX_KEYS + 1))
+    result = node.run("dev", TABLE)
+    assert len(result) == MAX_KEYS + 1
+    assert result[0] == "dev"
+    assert NodeForgeConfigTable.RETURN_NAMES == ("output_tag",) + tuple(
+        f"value_{i}" for i in range(1, MAX_KEYS + 1)
+    )
+    assert len(NodeForgeConfigTable.RETURN_TYPES) == MAX_KEYS + 1

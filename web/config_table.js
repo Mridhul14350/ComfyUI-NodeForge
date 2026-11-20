@@ -2,7 +2,6 @@ import { app } from "../../scripts/app.js";
 
 const CONFIG_NODE = "NodeForgeConfigTable";
 const MAX_KEYS = 10;
-const DEFAULT_TABLE = "keys: width, height\n[prod]\nwidth=100\nheight=200\n[dev]\nwidth=50\nheight=100";
 const TAG_BAD_CHARS = /[\[\]\n]/;
 const KEY_BAD_CHARS = /[,=\[\]\n]/;
 
@@ -82,17 +81,32 @@ function swapForDom(node, name, root, options) {
     return node.addDOMWidget(name, "custom", root, options);
 }
 
-// One output per key, labelled with the key name. Output i is the i-th key, which matches the Python node.
+// Replace the text widget with a dropdown of the same name, in the same slot, so the saved value still loads.
+function swapForCombo(node, name, options) {
+    const old = getWidget(node, name);
+    const index = old ? node.widgets.indexOf(old) : node.widgets.length;
+    if (old) {
+        node.widgets.splice(index, 1);
+        old.onRemove?.();
+    }
+    const combo = node.addWidget("combo", name, old?.value ?? "", () => {}, options);
+    node.widgets.splice(node.widgets.indexOf(combo), 1);
+    node.widgets.splice(index, 0, combo);
+    return combo;
+}
+
+// Output 0 is always the selected output tag (STRING). Outputs 1..n follow the keys, in keys: order, matching the Python node.
 function syncOutputs(node, names) {
     if (!node.outputs) return;
-    const wanted = names.length;
+    const labels = ["output_tag", ...names];
+    const wanted = labels.length;
     while (node.outputs.length > wanted) node.removeOutput(node.outputs.length - 1);
     while (node.outputs.length < wanted) node.addOutput("*", "*");
-    names.forEach((name, i) => {
+    labels.forEach((name, i) => {
         const out = node.outputs[i];
         out.name = name;
         out.label = name;
-        out.type = "*";
+        out.type = i === 0 ? "STRING" : "*";
     });
     resizeToContent(node);
 }
@@ -146,6 +160,7 @@ function parseTable(text) {
 }
 
 function serializeTable(model) {
+    if (!model.keys.length && !model.tags.length) return "";
     const lines = [`keys: ${model.keys.map((k) => k.name.trim()).join(", ")}`];
     for (const tag of model.tags) {
         lines.push(`[${tag.name.trim()}]`);
@@ -205,7 +220,7 @@ function openValuePopup(title, initial, onSave) {
     area.focus();
 }
 
-function buildTableEditor(onChange) {
+function buildTableEditor(onChange, onTagRenamed, onTagRemoved) {
     const model = { keys: [], tags: [], active: null };
     const root = el("div", "nf-ct-root");
     const tagRow = el("div", "nf-ct-tags");
@@ -246,7 +261,9 @@ function buildTableEditor(onChange) {
         const nameInput = textInput("nf-ct-input", tag.name, "tag name",
             (v) => tagNameOk(v, tag),
             (v) => {
+                const oldName = tag.name.trim();
                 tag.name = v;
+                onTagRenamed(oldName, v.trim());
                 renderTags();
                 onChange();
             });
@@ -321,6 +338,7 @@ function buildTableEditor(onChange) {
     const removeTag = (tag) => {
         model.tags = model.tags.filter((t) => t !== tag);
         if (model.active === tag.id) model.active = model.tags[0]?.id ?? null;
+        onTagRemoved(tag.name.trim());
         changed();
     };
 
@@ -340,6 +358,7 @@ function buildTableEditor(onChange) {
         root,
         get: () => serializeTable(model),
         keyNames: () => model.keys.map((k, i) => k.name.trim() || `value_${i + 1}`),
+        tagNames: () => [...new Set(model.tags.map((t) => t.name.trim()).filter(Boolean))],
         set: (text) => {
             Object.assign(model, parseTable(text));
             changed();
@@ -347,24 +366,52 @@ function buildTableEditor(onChange) {
     };
 }
 
+// Graphs saved before output_tag existed link Config Table outputs by the old slot index (key 1 = slot 0).
+// Shift those links by one and add the output_tag slot so every link keeps its key.
+function migrateLegacyTagOutput(graphData) {
+    const links = graphData?.links ?? [];
+    for (const node of graphData?.nodes ?? []) {
+        if (node.type !== CONFIG_NODE || !node.outputs) continue;
+        if (node.outputs.some((o) => o.name === "output_tag")) continue;
+        for (const link of links) {
+            if (link[1] === node.id) link[2] += 1;
+        }
+        node.outputs = [
+            { name: "output_tag", type: "STRING", links: [], slot_index: 0 },
+            ...node.outputs.map((o, i) => ({ ...o, slot_index: i + 1 })),
+        ];
+    }
+}
+
 app.registerExtension({
     name: "NodeForge.ConfigTable",
+    beforeConfigureGraph(graphData) {
+        migrateLegacyTagOutput(graphData);
+    },
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== CONFIG_NODE) return;
         const onCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             const result = onCreated?.apply(this, arguments);
             ensureCss();
-            const initial = getWidget(this, "table")?.value ?? DEFAULT_TABLE;
-            const editor = buildTableEditor(() => syncOutputs(this, editor.keyNames()));
+            let tagWidget = null;
+            const editor = buildTableEditor(() => {
+                syncOutputs(this, editor.keyNames());
+                if (tagWidget) tagWidget.options.values = editor.tagNames();
+            }, (oldName, newName) => {
+                if (oldName && tagWidget?.value === oldName) tagWidget.value = newName;
+            }, (name) => {
+                if (tagWidget?.value === name && !editor.tagNames().includes(name)) tagWidget.value = "";
+            });
             swapForDom(this, "table", editor.root, {
                 getValue: () => editor.get(),
                 setValue: (v) => editor.set(v),
                 getMinHeight: () => editor.root.scrollHeight,
             });
-            const envWidget = getWidget(this, "env");
-            if (envWidget) envWidget.label = "output tag";
-            editor.set(initial);
+            tagWidget = swapForCombo(this, "env", { values: [] });
+            tagWidget.value = "";
+            tagWidget.label = "output tag";
+            editor.set("");
             resizeToContent(this);
             return result;
         };

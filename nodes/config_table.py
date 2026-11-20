@@ -5,8 +5,8 @@ import re
 
 MAX_KEYS = 10
 CONFIG_LABEL = "NodeForge: Config Table"
-DEFAULT_ENV = "prod"
-DEFAULT_TABLE = "keys: width, height\n[prod]\nwidth=100\nheight=200\n[dev]\nwidth=50\nheight=100"
+DEFAULT_ENV = ""
+DEFAULT_TABLE = ""
 
 _INT = re.compile(r"-?\d+")
 _FLOAT = re.compile(r"-?\d+\.\d+")
@@ -107,11 +107,11 @@ def lookup(env, table):
 class NodeForgeConfigTable:
     CATEGORY = "NodeForge/Flow"
     FUNCTION = "run"
-    RETURN_TYPES = ("*",) * MAX_KEYS
-    RETURN_NAMES = tuple(f"value_{i + 1}" for i in range(MAX_KEYS))
+    RETURN_TYPES = ("STRING",) + ("*",) * MAX_KEYS
+    RETURN_NAMES = ("output_tag",) + tuple(f"value_{i + 1}" for i in range(MAX_KEYS))
     DESCRIPTION = (
-        "Looks up env in the table and outputs each key's value in keys: order. "
-        "Unused slots output nothing."
+        "Outputs the selected output tag first, then looks up env in the table and outputs "
+        "each key's value in keys: order. Unused slots output nothing."
     )
 
     @classmethod
@@ -124,4 +124,4 @@ class NodeForgeConfigTable:
         }
 
     def run(self, env, table):
-        return lookup(env, table)
+        return (str(env).strip(),) + lookup(env, table)
