@@ -140,12 +140,6 @@ export function ensureCss() {
     document.head.append(style);
 }
 
-// Grow the node enough for its content, but keep a size the user chose.
-export function fitNodeSize(node) {
-    const [w, h] = node.computeSize();
-    node.setSize?.([Math.max(node.size[0], w), Math.max(node.size[1], h)]);
-}
-
 // "input/notes/a.json" -> source "input", folder "input/notes", name "a.json".
 export function splitFile(value) {
     const text = String(value ?? "");
@@ -393,7 +387,6 @@ export function buildFileUi(node, { fileWidget, onPickKeys, keyCount, keysVisibl
         pick.disabled = !!computed?.linked;
         pick.title = computed?.linked ? "Pick keys needs a typed file_path, not a linked input" : "Choose keys to split";
         pick.style.display = keysVisible() ? "" : "none";
-        fitNodeSize(node);
     }
 
     function setFile(value) {

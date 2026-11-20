@@ -8,7 +8,7 @@ Custom ComfyUI nodes for working with files and JSON.
 
 Category: `NodeForge/IO`
 
-Loads a text or JSON file from the ComfyUI **input** or **output** folder. Click the file box to open a browser with a filter, a small/large view toggle, thumbnails for images, a preview, and INPUT/OUTPUT badges with the folder path. Supported types: `.txt`, `.json`, `.md`, `.csv`, `.log`. The popup and node use a blue accent (`#4ea8ff`).
+Loads a text or JSON file from the ComfyUI **input** or **output** folder. Click the file box to open a browser with a filter, a small/large view toggle, thumbnails for images, a preview, and INPUT/OUTPUT badges with the folder path. Supported types: `.txt`, `.json`, `.md`, `.csv`, `.log`. The popup and node use a blue accent (`#4ea8ff`). The node fits its height to its content in every output mode, so there is no empty space; `keys` mode only grows the node.
 
 **Inputs**
 
@@ -104,7 +104,7 @@ Category: `NodeForge/IO`
 
 Loads one or more images from the ComfyUI **input** and **output** folders (subfolders included, images only). Click **Select images** to open a multi-select popup. Click images to select them in order (up to 10), then press Enter or **Done**. Esc or **Cancel** closes the popup without changes.
 
-The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload** button. The uploaded image is saved to the ComfyUI input folder. It is added to the picked images if there is room. Uploads are not limited by the 10-image cap, but the selection is. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session.
+The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload** button. The uploaded image is saved to the ComfyUI input folder. It is added to the picked images if there is room. Uploads are not limited by the 10-image cap, but the selection is. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session. With the pointer over the node preview, the mouse wheel scrolls it instead of zooming the canvas.
 
 By default each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). Press the **Batch** button next to **Select images** to switch to batch mode. In batch mode all selected images form one batched `IMAGE` and one `MASK` (the node shows them as `images` and `masks`; the output names stay `image_1` / `mask_1`). Pictures of a different size are resized to the first picture's size with ComfyUI's center crop. The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
 
@@ -114,7 +114,7 @@ By default each image gets its own output pair. The backend always has 10 pairs;
 |---|---|---|
 | `images` | empty | Selected files, one per line, set by the popup. Entries start with `input/` or `output/`. |
 | `display` | `grid` | `grid` or `list`. Set by the grid/list button on the node. Controls the preview only. |
-| `file_path` | empty | Optional. Paths under `input/` or `output/`, one per line (backslashes are accepted). They are added to the selected `images`, and duplicates are skipped. The total is capped at 10. |
+| `file_path` | empty | Optional. Paths under `input/` or `output/`, one per line (backslashes are accepted). They are added to the selected `images`, and duplicates are skipped. The total is capped at 10. The box shows one line while empty (placeholder `file_path`), grows to 5 lines, then scrolls. |
 | `batch` | `false` | `true` or `false`. Set by the **Batch** button on the node. `true` returns all selected images as one batched pair in `image_1` / `mask_1`. |
 
 **Outputs**

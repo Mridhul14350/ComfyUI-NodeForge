@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { buildFileUi, ensureCss, fitNodeSize } from "./file_ui.js";
+import { buildFileUi, ensureCss } from "./file_ui.js";
 
 const NODE_NAME = "NodeForgeLoadFile";
 const MAX_OUTPUTS = 16;
@@ -89,6 +89,13 @@ function setKeysVisible(node) {
     if (keys.element) keys.element.style.display = show ? "" : "none";
 }
 
+// Keys mode only grows the node, so the keys box has room. Other modes fit the height to the content.
+function fitLoadFileNode(node) {
+    const [w, h] = node.computeSize();
+    const height = keysEnabled(node) ? Math.max(node.size[1], h) : h;
+    node.setSize([Math.max(node.size[0], w), height]);
+}
+
 function syncOutputs(node) {
     if (!node.outputs) return;
     setKeysVisible(node);
@@ -108,7 +115,7 @@ function syncOutputs(node) {
     });
 
     node.nfRefreshFileBox?.();
-    fitNodeSize(node);
+    fitLoadFileNode(node);
     node.setDirtyCanvas?.(true, true);
 }
 
@@ -479,13 +486,20 @@ app.registerExtension({
                     keysVisible: () => keysEnabled(this),
                     getComputed: () => computedSource(this),
                 });
-                const box = this.addDOMWidget("file_box", "custom", root, { serialize: false });
+                // Pin the box to its content so it does not stretch into spare node height.
+                const box = this.addDOMWidget("file_box", "custom", root, {
+                    serialize: false,
+                    getMinHeight: () => root.offsetHeight,
+                    getMaxHeight: () => root.offsetHeight,
+                });
                 // Not every frontend version reads the serialize option, so set it directly.
                 box.serialize = false;
                 this.widgets.splice(this.widgets.indexOf(box), 1);
                 this.widgets.unshift(box);
                 this.nfRefreshFileBox = refresh;
                 refresh();
+                // The box settles after layout, so refit whenever its real size changes.
+                new ResizeObserver(() => fitLoadFileNode(this)).observe(root);
             }
             // Replace the built-in text widget with a labeled box so the node's CSS applies.
             const oldKeys = getWidget(this, "keys");
@@ -538,6 +552,8 @@ app.registerExtension({
                 }
             }
             syncOutputs(this);
+            // Saved sizes were set before the file box laid out, so fit again after the next frame.
+            requestAnimationFrame(() => fitLoadFileNode(this));
             return result;
         };
     },

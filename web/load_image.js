@@ -4,7 +4,7 @@
 
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { ensureCss, fitNodeSize, splitFile, viewUrl } from "./file_ui.js";
+import { ensureCss, splitFile, viewUrl } from "./file_ui.js";
 
 const NODE_NAME = "NodeForgeLoadImage";
 const MAX_IMAGES = 10;
@@ -43,12 +43,14 @@ const CSS = `
 .nf-li-batch.on { background:var(--nf-acc); border-color:var(--nf-acc); color:#fff; }
 .nf-li-meta { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#9a9a9a; padding:0 2px; }
 .nf-li-view { max-height:260px; overflow:auto; background:#0f0f0f; border:1px solid #2c2c2c; border-radius:7px; padding:6px; box-sizing:border-box; }
-.nf-li-view.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:6px; }
+.nf-li-view.grid { display:flex; flex-wrap:wrap; align-content:flex-start; gap:6px; }
+.nf-li-view.grid .nf-li-tile { flex:0 0 calc((100% - 12px) / 3); }
 .nf-li-view.list { display:flex; flex-direction:column; gap:4px; }
 .nf-li-tile { position:relative; aspect-ratio:1; border:1px solid #2c2c2c; border-radius:6px; overflow:hidden; background:#0a0a0a; }
 .nf-li-num { position:absolute; top:3px; left:3px; background:var(--nf-acc); color:#fff; border-radius:4px; font-size:10px; padding:1px 5px; font-weight:600; }
 .nf-li-row { display:flex; align-items:center; gap:8px; background:#161616; border:1px solid #2c2c2c; border-radius:6px; padding:4px 6px; }
 .nf-li-img { width:100%; height:100%; object-fit:cover; display:block; box-sizing:border-box; }
+.nf-li-tile .nf-li-img { position:absolute; inset:0; }
 .nf-li-row .nf-li-img { width:40px; height:40px; flex:0 0 auto; border-radius:4px; }
 .nf-li-fallback { display:flex; align-items:center; justify-content:center; background:#0a0a0a; color:#888; font-size:10px; }
 .nf-li-empty { color:#777; text-align:center; padding:12px; font-size:11px; }
@@ -156,15 +158,45 @@ function syncOutputs(node) {
     }
 
     node.nfRefresh?.();
-    fitNodeSize(node);
+    sizeFilePath(node);
+    fitToContent(node);
     node.setDirtyCanvas?.(true, true);
 }
 
+// Measured from the rendered preview, so the box fits the thumbnails and the view's own scroll cap.
 function previewHeight(node) {
-    const n = selectionOf(node).length;
-    if (!n) return 60;
-    if (displayMode(node) === "list") return Math.min(260, 40 + n * 46);
-    return Math.min(260, 40 + Math.ceil(n / 3) * 100);
+    const root = node.nfRoot;
+    if (!root?.isConnected) return node.nfPreviewHeight ?? 120;
+    const cs = getComputedStyle(root);
+    const parts = [...root.children];
+    const gap = parseFloat(cs.rowGap) || 0;
+    const content = parts.reduce((sum, part) => sum + part.offsetHeight, 0) + gap * (parts.length - 1);
+    node.nfPreviewHeight = content + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    return node.nfPreviewHeight;
+}
+
+const FILE_PATH_ROWS = 5;
+const FILE_PATH_PAD = 8;
+
+// The Vue layout ignores widget size hints, so the node's own textarea is sized here.
+// One line when empty, grows with the typed lines, and scrolls after FILE_PATH_ROWS.
+function sizeFilePath(node) {
+    const widget = getWidget(node, "file_path");
+    const ta = document.querySelector(`[node-id="${node.id}"] textarea`);
+    if (!widget || !ta) return;
+    const lineHeight = parseFloat(getComputedStyle(ta).lineHeight) || 15;
+    const rows = Math.min(Math.max(String(widget.value ?? "").split("\n").length, 1), FILE_PATH_ROWS);
+    ta.style.paddingTop = `${FILE_PATH_PAD}px`;
+    ta.style.paddingBottom = `${FILE_PATH_PAD}px`;
+    ta.style.height = `${rows * lineHeight + 2 * FILE_PATH_PAD}px`;
+    ta.style.minHeight = ta.style.height;
+    ta.placeholder = "file_path";
+}
+
+// Set the node to its content height. Width is kept.
+function fitToContent(node) {
+    const [, height] = node.computeSize();
+    node.setSize([node.size[0], height]);
 }
 
 // Thumbnail through ComfyUI's /view endpoint. Falls back to the extension if it fails.
@@ -472,6 +504,15 @@ app.registerExtension({
             bar.append(pick, batchBtn, toggle);
             const count = el("div", "nf-li-meta");
             const view = el("div", "nf-li-view grid");
+            // Focusable so the wheel scrolls the list instead of zooming the canvas (see load_file.js).
+            view.tabIndex = 0;
+            view.dataset.captureWheel = "true";
+            // Focus on hover so the first wheel tick scrolls the list instead of zooming the canvas.
+            view.addEventListener("pointerenter", () => {
+                const active = document.activeElement;
+                const typing = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement;
+                if (!typing) view.focus({ preventScroll: true });
+            });
             const root = el("div", "nf-lf-root");
             root.append(bar, count, view);
             pick.addEventListener("click", (e) => {
@@ -501,6 +542,7 @@ app.registerExtension({
             this.nfImageCount = count;
             this.nfViewButtons = { grid: gridBtn, list: listBtn };
             this.nfBatchButton = batchBtn;
+            this.nfRoot = root;
             this.nfRefresh = () => renderPreview(this);
 
             const box = this.addDOMWidget("image_box", "custom", root, {
@@ -520,14 +562,18 @@ app.registerExtension({
             // Typing a path re-renders the preview and output pairs at once.
             const filePath = getWidget(this, "file_path");
             if (filePath) {
+                // The label sits in the textarea's top padding and scrolled text slides under it.
+                // A blank label plus a placeholder keeps the name visible while the box is empty.
+                filePath.label = " ";
                 const previous = filePath.callback;
                 filePath.callback = (...args) => {
                     previous?.apply(filePath, args);
                     syncOutputs(this);
                 };
-                filePath.element?.addEventListener("input", () => syncOutputs(this));
             }
             syncOutputs(this);
+            // The widgets are measured once they are in the page, so size again after the first frame.
+            requestAnimationFrame(() => syncOutputs(this));
             return result;
         };
 
@@ -541,6 +587,7 @@ app.registerExtension({
             const result = onConfigure?.apply(this, arguments);
             SAVED_ORDER.forEach((name, i) => setWidgetValue(this, name, values[i]));
             syncOutputs(this);
+            requestAnimationFrame(() => syncOutputs(this));
             return result;
         };
     },
