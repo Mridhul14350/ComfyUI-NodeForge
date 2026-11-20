@@ -1,6 +1,6 @@
 # NodeForge
 
-Custom ComfyUI nodes for working with files and JSON.
+Custom ComfyUI nodes for working with files, JSON and text.
 
 ## Nodes
 
@@ -104,9 +104,9 @@ Category: `NodeForge/IO`
 
 Loads one or more images from the ComfyUI **input** and **output** folders (subfolders included, images only). Click **Select images** to open a multi-select popup. Click images to select them in order (up to 10), then press Enter or **Done**. Esc or **Cancel** closes the popup without changes.
 
-The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload** button. The uploaded image is saved to the ComfyUI input folder. It is added to the picked images if there is room. Uploads are not limited by the 10-image cap, but the selection is. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session. With the pointer over the node preview, the mouse wheel scrolls it instead of zooming the canvas.
+The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload** button. The uploaded image is saved to the ComfyUI input folder. It is added to the picked images if there is room. Uploads are not limited by the 10-image cap, but the selection is. The node preview has a small grid/list button next to **Select images**. The popup remembers its last filter and grid/list view for the session. With the pointer over the node preview, the mouse wheel scrolls it instead of zooming the canvas.
 
-By default each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). Press the **Batch** button next to **Select images** to switch to batch mode. In batch mode all selected images form one batched `IMAGE` and one `MASK` (the node shows them as `images` and `masks`; the output names stay `image_1` / `mask_1`). Pictures of a different size are resized to the first picture's size with ComfyUI's center crop. The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
+By default each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). Click the **Batch: off** button next to **Select images** to switch to batch mode, which then reads **Batch: on**. In batch mode all selected images form one batched `IMAGE` and one `MASK` (the node shows them as `images` and `masks`; the output names stay `image_1` / `mask_1`). Pictures of a different size are resized to the first picture's size with ComfyUI's center crop. The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
 
 **Inputs**
 
@@ -136,7 +136,7 @@ Sets named text values. The editor is a NAME / VALUE table, like ResolveString. 
 
 Names may use letters, digits, `_` and `-`. Rows with a blank name are skipped. A name used twice is an error.
 
-**Config (⚙):** click ⚙ on a row to open its popup. The popup holds the **Value / Choice** toggle, a larger value box for multi-line text, the **step**, and (for a choice row) the options. **Save** applies the changes; **Cancel**, or a click outside the popup, discards them. The table shows the value, or the dropdown for a choice row.
+**Config (⚙):** click ⚙ on a row to open its popup. The popup holds the **Value / Choice** toggle. A value row shows a larger value box for multi-line text and the **step** box. A choice row shows the **Options** list. **Save** applies the changes; **Cancel**, or a click outside the popup, discards them. The table shows the value, or the dropdown for a choice row.
 
 **Increment:** in the ⚙ popup, the **step** box adds a whole number to the value on each run. Leave it blank or `0` for no change. With value `1` and step `2`, the runs give `1`, `3`, `5`. A negative step counts down. Leading zeros are kept, so `001` with step `1` gives `002`. The value must be a whole number. The count is kept by the server and restarts from the typed value when you change it or restart ComfyUI.
 
@@ -167,7 +167,7 @@ Example: a Variables row `folder_001` = `tmp001`, and a string `output/%folder_0
 
 Date tokens use the same format letters as core ComfyUI: `yyyy`, `yy`, `MM`, `dd`, `hh` (24-hour), `mm`, `ss`. For example `%date:yyyy-MM-dd_hh-mm-ss%` gives `2026-11-18_02-23-10`. The time is the server's local time when the queue runs, and all strings in one run share the same time.
 
-Tokens are replaced once (values are not expanded again). Dates are replaced first, so a variable value that contains `%date:...%` stays as typed. An unknown name, or a malformed input, stops the run with an error that names the node.
+Tokens are replaced once (values are not expanded again). Dates are replaced first, so a variable value that contains `%date:...%` stays as typed. An unknown name is not an error; its token stays as text. A malformed `strings` or `variables` input, or a duplicate key, stops the run with an error that names the node.
 
 ### NodeForge: Switch Case
 
