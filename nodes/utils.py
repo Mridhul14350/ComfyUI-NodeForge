@@ -203,12 +203,31 @@ def variables_from_json(text: str, label: str) -> dict:
     return data
 
 
-def strings_from_json(text: str, label: str) -> list:
-    """Read the JSON list of input strings that NodeForge: ResolveString edits."""
+def string_rows_from_json(text: str, label: str) -> list:
+    """Read the rows that NodeForge: ResolveString edits, as (key, value) pairs.
+    A row is {"key": ..., "value": ...}; keys must be set and unique. A plain
+    list of text values (the older format) is read with keys string_1, string_2, ..."""
     data = _load_json(text, label, "strings")
-    if not isinstance(data, list) or not all(isinstance(s, str) for s in data):
-        raise ValueError(f"{label}: strings must be a list of text values")
-    return data
+    if not isinstance(data, list):
+        raise ValueError(f"{label}: strings must be a list of key/value rows")
+    rows = []
+    keys = set()
+    for i, item in enumerate(data):
+        if isinstance(item, str):
+            key, value = f"string_{i + 1}", item
+        elif isinstance(item, dict):
+            key = str(item.get("key") or "").strip()
+            if not key:
+                raise ValueError(f"{label}: every row needs a key")
+            value = item.get("value")
+            value = "" if value is None else str(value)
+        else:
+            raise ValueError(f"{label}: every row must be a key/value object or text")
+        if key in keys:
+            raise ValueError(f"{label}: key '{key}' is used more than once")
+        keys.add(key)
+        rows.append((key, value))
+    return rows
 
 
 def resolve_dates(text: str, now: datetime.datetime) -> str:

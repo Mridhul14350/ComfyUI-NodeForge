@@ -10,7 +10,7 @@ from .utils import (
     choice_labels,
     resolve_dates,
     resolve_variables,
-    strings_from_json,
+    string_rows_from_json,
     variable_rows,
     variables_from_json,
 )
@@ -78,15 +78,15 @@ class NodeForgeResolveString:
         return ""
 
     def run(self, strings, variables=""):
-        items = strings_from_json(strings, RESOLVE_LABEL)
-        if len(items) > MAX_STRINGS:
+        rows = string_rows_from_json(strings, RESOLVE_LABEL)
+        if len(rows) > MAX_STRINGS:
             raise ValueError(
-                f"{RESOLVE_LABEL}: at most {MAX_STRINGS} strings, got {len(items)}"
+                f"{RESOLVE_LABEL}: at most {MAX_STRINGS} rows, got {len(rows)}"
             )
         values = variables_from_json(variables, RESOLVE_LABEL)
         now = datetime.datetime.now()
         resolved = [
-            resolve_variables(resolve_dates(s, now), values, RESOLVE_LABEL)
-            for s in items
+            resolve_variables(resolve_dates(text, now), values, RESOLVE_LABEL)
+            for _key, text in rows
         ]
         return tuple(resolved + [None] * (MAX_STRINGS - len(resolved)))

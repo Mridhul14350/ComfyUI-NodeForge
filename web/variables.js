@@ -341,82 +341,195 @@ function syncChoiceOutputs(node) {
     resizeToContent(node);
 }
 
-// One textarea per string. The number of rows sets the number of outputs. Each textarea grows with its text.
+const RS_CSS = `
+.nf-rs-root { --nf-acc:#4ea8ff; display:flex; flex-direction:column; gap:6px; padding:4px; box-sizing:border-box; width:100%; font-size:12px; color:#ddd; }
+.nf-rs-btn { height:24px; padding:0 9px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.85); font:inherit; font-weight:600; cursor:pointer; }
+.nf-rs-btn:hover:not(:disabled) { background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.35); color:#fff; }
+.nf-rs-btn:disabled { opacity:0.4; cursor:default; }
+.nf-rs-panel { display:flex; flex-direction:column; gap:5px; background:#141414; border:1px solid #2c2c2c; border-radius:7px; padding:7px; box-sizing:border-box; }
+.nf-rs-rows { display:flex; flex-direction:column; gap:5px; }
+.nf-rs-line { display:flex; gap:5px; align-items:center; }
+.nf-rs-colhead { display:flex; gap:5px; color:#8a8a8a; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; padding:0 2px; }
+.nf-rs-colhead .nf-rs-key-col { flex:0 0 96px; }
+.nf-rs-colhead .nf-rs-val-col { flex:1 1 auto; }
+.nf-rs-colhead .nf-rs-spacer { flex:0 0 52px; }
+.nf-rs-input { height:26px; min-width:0; background:#1d1d1d; border:1px solid #3a3a3a; border-radius:5px; padding:4px 6px; color:#ddd; font:inherit; box-sizing:border-box; }
+.nf-rs-input:focus { outline:none; border-color:var(--nf-acc); }
+.nf-rs-input.invalid { border-color:#e05a5a; }
+.nf-rs-key { flex:0 0 96px; width:96px; }
+.nf-rs-value { flex:1 1 auto; resize:none; overflow:hidden; white-space:nowrap; line-height:16px; padding-top:4px; padding-bottom:4px; }
+.nf-rs-x { width:24px; height:26px; flex:0 0 auto; border-radius:6px; border:1px solid #3a3a3a; background:transparent; color:#aaa; cursor:pointer; font:inherit; padding:0; }
+.nf-rs-x:hover { border-color:var(--nf-acc); color:#fff; }
+.nf-rs-x.remove:hover { border-color:#e05a5a; }
+.nf-rs-hint { color:#8a8a8a; font-size:11px; padding:6px 2px; }
+.nf-rs-overlay { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
+.nf-rs-popup { width:min(560px,90vw); display:flex; flex-direction:column; gap:8px; padding:12px; box-sizing:border-box; background:#1a1a1a; border:1px solid #3a3a3a; border-radius:9px; color:#ddd; font:13px sans-serif; }
+.nf-rs-popup-head { color:var(--nf-acc); font-weight:600; }
+.nf-rs-popup-area { min-height:240px; resize:vertical; line-height:1.4; white-space:pre-wrap; overflow:auto; }
+.nf-rs-popup-actions { display:flex; justify-content:flex-end; gap:6px; }
+`;
+
+function ensureStringCss() {
+    if (document.getElementById("nf-rs-css")) return;
+    const style = document.createElement("style");
+    style.id = "nf-rs-css";
+    style.textContent = RS_CSS;
+    document.head.append(style);
+}
+
+function rsButton(text, title, onClick) {
+    const b = el("button", "nf-rs-btn", text);
+    b.type = "button";
+    if (title) b.title = title;
+    b.onclick = onClick;
+    return b;
+}
+
+// Popup for editing one value. Save writes the text back; Cancel or a click outside discards it.
+function openValuePopup(title, initial, onSave) {
+    const overlay = el("div", "nf-rs-overlay");
+    const box = el("div", "nf-rs-popup");
+    const area = el("textarea", "nf-rs-input nf-rs-popup-area");
+    area.value = initial;
+    area.placeholder = "value";
+    area.spellcheck = false;
+    const actions = el("div", "nf-rs-popup-actions");
+    actions.append(
+        rsButton("Cancel", "", () => overlay.remove()),
+        rsButton("Save", "", () => {
+            onSave(area.value);
+            overlay.remove();
+        }),
+    );
+    box.append(el("div", "nf-rs-popup-head", title), area, actions);
+    overlay.append(box);
+    overlay.addEventListener("mousedown", (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+    document.body.append(overlay);
+    area.focus();
+}
+
+// Smallest string_N that no key uses yet, for a new row.
+function nextKeyName(rows) {
+    const taken = new Set(rows.map((r) => r.key.trim()));
+    let n = 1;
+    while (taken.has(`string_${n}`)) n++;
+    return `string_${n}`;
+}
+
+// Saved rows are {key, value}. Older saves hold plain text, which gets the key string_N for its position.
+function parseStringRows(value) {
+    return parseRows(value).map((item, i) => {
+        if (item && typeof item === "object") {
+            return { key: String(item.key ?? ""), value: String(item.value ?? "") };
+        }
+        return { key: `string_${i + 1}`, value: String(item ?? "") };
+    });
+}
+
+// Key/value table, styled like the Config Table. Each row's key is its output label. The number of rows sets the
+// number of outputs. Keys must be unique and non-empty; a row with a bad key is marked red.
 function buildStringsEditor(onChange) {
-    const root = el("div", "nf-var-root");
-    const head = el("div", "nf-var-head");
-    head.append(el("span", "nf-var-title", "strings"), el("span", "nf-var-count"));
-    const list = el("div", "nf-var-list");
-    const add = el("button", "nf-var-add", "+ Add string");
-    add.type = "button";
-    root.append(head, list, add);
-    const count = head.querySelector(".nf-var-count");
+    ensureStringCss();
+    const rows = [];
+    const entries = [];
+    const root = el("div", "nf-rs-root");
+    const panel = el("div", "nf-rs-panel");
+    const head = el("div", "nf-rs-colhead");
+    head.append(el("span", "nf-rs-key-col", "key"), el("span", "nf-rs-val-col", "value"), el("span", "nf-rs-spacer"));
+    const list = el("div", "nf-rs-rows");
+    const add = rsButton("+ Add key", `Add a row (up to ${MAX_STRINGS})`, () => {
+        rows.push({ key: nextKeyName(rows), value: "" });
+        renderRows();
+        onChange();
+        entries[entries.length - 1]?.keyInput.focus();
+    });
+    panel.append(head, list, add);
+    root.append(panel);
 
-    const rowCount = () => list.children.length;
-    const refresh = () => {
-        count.textContent = `${rowCount()} / ${MAX_STRINGS}`;
-        add.disabled = rowCount() >= MAX_STRINGS;
+    const keyOk = (row) => {
+        const n = row.key.trim();
+        return Boolean(n) && !rows.some((other) => other !== row && other.key.trim() === n);
     };
-    const fitAll = () => list.querySelectorAll(".nf-var-text").forEach(autoGrow);
+    const markKeys = () => {
+        for (const { row, keyInput } of entries) keyInput.classList.toggle("invalid", !keyOk(row));
+    };
 
-    const addRow = (text = "") => {
-        const row = el("div", "nf-var-row nf-var-row-text");
-        const area = el("textarea", "nf-var-text");
-        area.rows = 1;
-        area.spellcheck = false;
-        area.placeholder = "out/%Variables.folder_001%/prompt_00001.txt";
-        // ComfyUI forwards wheel to the canvas (zoom) unless this marker is set and the element is focused.
-        area.dataset.captureWheel = "true";
-        area.value = text;
-        area.addEventListener("input", () => {
-            autoGrow(area);
+    const buildRow = (row) => {
+        const line = el("div", "nf-rs-line");
+        const keyInput = el("input", "nf-rs-input nf-rs-key");
+        keyInput.type = "text";
+        keyInput.placeholder = "key";
+        keyInput.spellcheck = false;
+        keyInput.value = row.key;
+        keyInput.addEventListener("input", () => {
+            row.key = keyInput.value;
+            markKeys();
             onChange();
         });
-        const del = el("button", "nf-var-del", "×");
-        del.type = "button";
-        del.title = "Remove string";
-        del.onclick = () => {
-            row.remove();
-            refresh();
+
+        const valueArea = el("textarea", "nf-rs-input nf-rs-value");
+        valueArea.rows = 1;
+        valueArea.placeholder = "value";
+        valueArea.spellcheck = false;
+        valueArea.value = row.value;
+        valueArea.addEventListener("input", () => {
+            row.value = valueArea.value;
             onChange();
-        };
-        row.append(area, del);
-        list.append(row);
-        refresh();
-        autoGrow(area);
-        return area;
+        });
+
+        const expand = rsButton("⤢", "Edit this value in a popup", () => {
+            openValuePopup(row.key.trim() || "value", valueArea.value, (text) => {
+                valueArea.value = text;
+                row.value = text;
+                onChange();
+            });
+        });
+        expand.classList.add("nf-rs-x");
+
+        const remove = rsButton("×", "Remove this row", () => {
+            rows.splice(rows.indexOf(row), 1);
+            renderRows();
+            onChange();
+        });
+        remove.classList.add("nf-rs-x", "remove");
+
+        line.append(keyInput, valueArea, expand, remove);
+        entries.push({ row, keyInput });
+        return line;
     };
 
-    add.onclick = () => {
-        if (rowCount() >= MAX_STRINGS) return;
-        addRow().focus();
-        onChange();
+    const renderRows = () => {
+        entries.length = 0;
+        list.replaceChildren(...rows.map(buildRow));
+        add.disabled = rows.length >= MAX_STRINGS;
+        markKeys();
     };
 
     return {
         root,
         get() {
-            return JSON.stringify([...list.querySelectorAll(".nf-var-text")].map((a) => a.value));
+            return JSON.stringify(rows.map((r) => ({ key: r.key, value: r.value })));
         },
         set(value) {
-            list.replaceChildren();
-            // Keep every saved string. Going over MAX_STRINGS is reported when the node runs.
-            for (const text of parseRows(value)) addRow(String(text ?? ""));
-            if (!list.children.length) addRow();
-            refresh();
-            requestAnimationFrame(() => {
-                fitAll();
-                onChange();
-            });
+            rows.splice(0, rows.length, ...parseStringRows(value));
+            // Keep every saved row. Going over MAX_STRINGS is reported when the node runs.
+            if (!rows.length) rows.push({ key: "string_1", value: "" });
+            renderRows();
+            requestAnimationFrame(onChange);
         },
-        count: rowCount,
+        // The output label for each row: its key, or string_N when the key is blank.
+        labels: () => rows.map((r, i) => r.key.trim() || `string_${i + 1}`),
     };
 }
 
-// Show one output per string row. Outputs are declared as 16 STRINGs in Python; extra ones are removed.
+// Show one output per row. Output names stay string_1..string_16 (Python declares them), so links keep working.
+// Each output's label is its row key.
 function syncStringOutputs(node) {
     if (!node.outputs || !node.nfStrings) return;
-    const wanted = Math.max(1, Math.min(MAX_STRINGS, node.nfStrings.count()));
+    const labels = node.nfStrings.labels();
+    const wanted = Math.max(1, Math.min(MAX_STRINGS, labels.length));
     while (node.outputs.length > wanted) {
         node.removeOutput(node.outputs.length - 1);
     }
@@ -426,7 +539,7 @@ function syncStringOutputs(node) {
     for (let i = 0; i < wanted; i++) {
         const out = node.outputs[i];
         out.name = `string_${i + 1}`;
-        out.label = `string_${i + 1}`;
+        out.label = labels[i] ?? `string_${i + 1}`;
         out.type = "STRING";
     }
     resizeToContent(node);
@@ -484,6 +597,7 @@ app.registerExtension({
                     getMinHeight: () => editor.root.scrollHeight,
                 });
                 editor.set("[]");
+                this.setSize?.([Math.max(this.size[0], 460), this.size[1]]);
                 return result;
             };
 

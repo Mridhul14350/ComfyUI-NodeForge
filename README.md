@@ -148,16 +148,18 @@ Names may use letters, digits, `_` and `-`. Rows with a blank name are skipped. 
 
 Category: `NodeForge/Text`
 
-Replaces `%Variables.name%` and `%date:FORMAT%` tokens in one or more strings. Click **+ Add string** to add a text box, and × to remove it. Up to 16 strings.
+Replaces `%Variables.name%` and `%date:FORMAT%` tokens in one or more strings. The editor is a KEY / VALUE table. Click **+ Add key** to add a row, and × to remove it. The value box is wide, and ⤢ opens it in a larger editor for multi-line text. Up to 16 rows.
+
+Each row's **key** is the output's label, so name it for what it carries (for example `image_prefix`). Keys must be filled in and unique; a blank or duplicate key is an error and is shown in red. Workflows saved with the older plain-text list still load; their outputs are named by position.
 
 **Inputs**
 
 | Input | Notes |
 |---|---|
-| `strings` | One text box per string. Set by the node, not a socket. |
+| `strings` | One KEY / VALUE row per output. Set by the node, not a socket. |
 | `variables` | Optional. Connect the output of **NodeForge: Variables**. Without it, any token is an error. |
 
-**Outputs:** `string_1` … `string_N`, one per string box, `STRING`. The number of outputs follows the number of boxes.
+**Outputs:** `string_1` … `string_N`, one per row, `STRING`. Each output is labelled with its row's key. The number of outputs follows the number of rows. Output names stay positional, so links are not affected by renaming a key.
 
 Example: a Variables row `folder_001` = `tmp001`, and a string `output/%Variables.folder_001%/prompt_00001.txt` resolves to `output/tmp001/prompt_00001.txt`. Connect `string_1` to a Save node's `filename_prefix` to use the result there.
 

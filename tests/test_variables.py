@@ -162,13 +162,35 @@ def test_resolve_unknown_variable_raises_with_name():
 
 
 def test_resolve_string_node_resolves_each_row_and_pads_outputs():
-    strings = json.dumps(["out/%Variables.f%/a.png", "plain"])
+    rows = json.dumps(
+        [
+            {"key": "first", "value": "out/%Variables.f%/a.png"},
+            {"key": "second", "value": "plain"},
+        ]
+    )
     variables = json.dumps({"f": "tmp001"})
-    out = NodeForgeResolveString().run(strings, variables)
+    out = NodeForgeResolveString().run(rows, variables)
     assert len(out) == MAX_STRINGS
     assert out[0] == "out/tmp001/a.png"
     assert out[1] == "plain"
     assert all(v is None for v in out[2:])
+
+
+@pytest.mark.parametrize(
+    "rows, message",
+    [
+        ([{"key": "a", "value": "1"}, {"key": "a", "value": "2"}], "key 'a' is used more than once"),
+        ([{"key": "  ", "value": "1"}], "every row needs a key"),
+    ],
+)
+def test_resolve_string_node_rejects_missing_or_duplicate_keys(rows, message):
+    with pytest.raises(ValueError, match=message):
+        NodeForgeResolveString().run(json.dumps(rows))
+
+
+def test_resolve_string_node_still_reads_plain_text_list():
+    out = NodeForgeResolveString().run(json.dumps(["old", "format"]))
+    assert out[:2] == ("old", "format")
 
 
 def test_resolve_dates_uses_core_format_tokens():
@@ -202,6 +224,6 @@ def test_resolve_string_node_works_without_variables_input_when_no_tokens():
 
 
 def test_resolve_string_node_rejects_more_than_max_strings():
-    strings = json.dumps(["x"] * (MAX_STRINGS + 1))
-    with pytest.raises(ValueError, match="at most 16 strings"):
+    strings = json.dumps([{"key": f"k{i}", "value": "x"} for i in range(MAX_STRINGS + 1)])
+    with pytest.raises(ValueError, match="at most 16 rows"):
         NodeForgeResolveString().run(strings)
