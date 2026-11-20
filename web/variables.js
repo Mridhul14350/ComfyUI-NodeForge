@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { ensureCss } from "./file_ui.js";
+import { outputType } from "./value_types.js";
 
 const VARIABLES_NODE = "NodeForgeVariables";
 const RESOLVE_NODE = "NodeForgeResolveString";
@@ -348,25 +349,26 @@ function buildVariablesEditor(onChange) {
 
 // One output per named choice row, in row order, labelled with the row name. Output 0 is `variables`.
 // The internal name stays v_choice_N so the slot index and links are unaffected by renames.
+// Each choice output takes its type from the values of all options in its row (see outputType).
 function syncChoiceOutputs(node) {
     if (!node.outputs || !node.nfVariables) return;
-    const names = parseRows(node.nfVariables.get())
+    const choices = parseRows(node.nfVariables.get())
         .filter((r) => r?.type === TYPE_CHOICE && String(r.name ?? "").trim())
-        .map((r) => String(r.name).trim())
         .slice(0, MAX_CHOICES);
-    const wanted = 1 + names.length;
+    const wanted = 1 + choices.length;
     while (node.outputs.length > wanted) {
         node.removeOutput(node.outputs.length - 1);
     }
     while (node.outputs.length < wanted) {
-        node.addOutput("string", "STRING");
+        node.addOutput("*", "*");
     }
-    for (let i = 1; i < wanted; i++) {
-        const out = node.outputs[i];
-        out.name = `v_choice_${i}`;
-        out.label = names[i - 1];
-        out.type = "STRING";
-    }
+    choices.forEach((row, i) => {
+        const out = node.outputs[i + 1];
+        const options = Array.isArray(row.options) ? row.options : [];
+        out.name = `v_choice_${i + 1}`;
+        out.label = String(row.name).trim();
+        out.type = outputType(options.map((o) => o?.value));
+    });
     resizeToContent(node);
 }
 

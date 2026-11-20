@@ -7,7 +7,7 @@ import uuid
 
 from .utils import (
     apply_increments,
-    choice_labels,
+    choice_outputs,
     resolve_dates,
     resolve_variables,
     string_rows_from_json,
@@ -27,7 +27,7 @@ INCREMENT_STATE = {}
 class NodeForgeVariables:
     CATEGORY = "NodeForge/Text"
     FUNCTION = "run"
-    RETURN_TYPES = ("STRING",) * (1 + MAX_CHOICES)
+    RETURN_TYPES = ("STRING",) + ("*",) * MAX_CHOICES
     RETURN_NAMES = ("variables",) + tuple(f"v_choice_{i + 1}" for i in range(MAX_CHOICES))
 
     @classmethod
@@ -49,7 +49,7 @@ class NodeForgeVariables:
     def run(self, data, unique_id=None):
         rows = variable_rows(data, VARIABLES_LABEL)
         values = apply_increments(rows, str(unique_id), INCREMENT_STATE)
-        choices = choice_labels(data, VARIABLES_LABEL)
+        choices = choice_outputs(data, VARIABLES_LABEL)
         if len(choices) > MAX_CHOICES:
             raise ValueError(
                 f"{VARIABLES_LABEL}: at most {MAX_CHOICES} choice variables, got {len(choices)}"

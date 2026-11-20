@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { outputType } from "./value_types.js";
 
 const CONFIG_NODE = "NodeForgeConfigTable";
 const MAX_KEYS = 10;
@@ -96,19 +97,26 @@ function swapForCombo(node, name, options) {
 }
 
 // Output 0 is always the selected output tag (STRING). Outputs 1..n follow the keys, in keys: order, matching the Python node.
-function syncOutputs(node, names) {
+// Each key output takes the type from its values (see keyType); columns is [{ name, type }].
+function syncOutputs(node, columns) {
     if (!node.outputs) return;
-    const labels = ["output_tag", ...names];
+    const labels = [{ name: "output_tag", type: "STRING" }, ...columns];
     const wanted = labels.length;
     while (node.outputs.length > wanted) node.removeOutput(node.outputs.length - 1);
     while (node.outputs.length < wanted) node.addOutput("*", "*");
-    labels.forEach((name, i) => {
+    labels.forEach((col, i) => {
         const out = node.outputs[i];
-        out.name = name;
-        out.label = name;
-        out.type = i === 0 ? "STRING" : "*";
+        out.name = col.name;
+        out.label = col.name;
+        out.type = col.type;
     });
     resizeToContent(node);
+}
+
+// Same rules as the Python side: whole numbers are INT, decimals FLOAT, anything else (or empty) STRING.
+// The type is decided across every tag, so one key has one output type whichever tag is selected.
+function keyType(tags, keyId) {
+    return outputType(tags.map((tag) => tag.values[keyId] ?? ""));
 }
 
 // Model: keys are shared by every tag. Values are stored by key id, so renaming a key keeps its values.
@@ -357,7 +365,10 @@ function buildTableEditor(onChange, onTagRenamed, onTagRemoved) {
     return {
         root,
         get: () => serializeTable(model),
-        keyNames: () => model.keys.map((k, i) => k.name.trim() || `value_${i + 1}`),
+        keyColumns: () => model.keys.map((k, i) => ({
+            name: k.name.trim() || `value_${i + 1}`,
+            type: keyType(model.tags, k.id),
+        })),
         tagNames: () => [...new Set(model.tags.map((t) => t.name.trim()).filter(Boolean))],
         set: (text) => {
             Object.assign(model, parseTable(text));
@@ -396,7 +407,7 @@ app.registerExtension({
             ensureCss();
             let tagWidget = null;
             const editor = buildTableEditor(() => {
-                syncOutputs(this, editor.keyNames());
+                syncOutputs(this, editor.keyColumns());
                 if (tagWidget) tagWidget.options.values = editor.tagNames();
             }, (oldName, newName) => {
                 if (oldName && tagWidget?.value === oldName) tagWidget.value = newName;

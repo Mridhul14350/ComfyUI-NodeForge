@@ -8,6 +8,7 @@ import re
 MAX_FILE_BYTES = 10 * 1024 * 1024
 VARIABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 WHOLE_NUMBER_RE = re.compile(r"-?\d+")
+DECIMAL_RE = re.compile(r"-?\d+\.\d+")
 VARIABLE_TOKEN_RE = re.compile(r"%([A-Za-z0-9_-]+)%")
 DATE_TOKEN_RE = re.compile(r"%date:([^%]*)%")
 DATE_FORMAT_RE = re.compile(r"yyyy|yy|MM|dd|hh|mm|ss")
@@ -83,7 +84,7 @@ def variable_rows(text: str, label: str) -> list:
 
 
 def _parse_rows(text: str, label: str) -> list:
-    """Return (name, value, step, choice label) tuples. The choice label is None for value rows."""
+    """Return (name, value, step, choice output) tuples. The choice output is None for value rows."""
     rows = _load_json(text, label, "variables")
     if not isinstance(rows, list):
         raise ValueError(f"{label}: variables must be a list of name/value rows")
@@ -105,19 +106,20 @@ def _parse_rows(text: str, label: str) -> list:
         named.append((name, row))
 
     choices = {name: row for name, row in named if row.get("type") == "choice"}
-    resolved = {}  # name -> (selected label, value)
+    resolved = {}  # name -> (selected option value, typed output)
     for name, row in choices.items():
         options = _options(row, label, name)
         selected = str(row.get("selected") or "")
         if selected not in options:
             raise ValueError(f"{label}: choice variable '{name}' has no option labelled '{selected}'")
-        resolved[name] = (selected, options[selected])
+        kind = output_type(options.values())
+        resolved[name] = (options[selected], typed_output(options[selected], kind))
 
     parsed = []
     for name, row in named:
         if name in resolved:
-            selected, value = resolved[name]
-            parsed.append((name, value, 0, selected))
+            value, out = resolved[name]
+            parsed.append((name, value, 0, out))
             continue
         value = row.get("value")
         value = "" if value is None else str(value)
@@ -160,9 +162,38 @@ def _parse_step(raw, label: str, name: str) -> int:
     return int(text)
 
 
-def choice_labels(text: str, label: str) -> list:
-    """Return the selected option label of each choice row, in row order. Value rows are left out."""
-    return [choice for _name, _value, _step, choice in _parse_rows(text, label) if choice is not None]
+def value_kind(text: str) -> str:
+    """INT for a whole number, FLOAT for a decimal, STRING for anything else (after trimming)."""
+    text = text.strip()
+    if WHOLE_NUMBER_RE.fullmatch(text):
+        return "INT"
+    if DECIMAL_RE.fullmatch(text):
+        return "FLOAT"
+    return "STRING"
+
+
+def output_type(texts) -> str:
+    """One type for a socket that takes any of these values. Any text or no values gives STRING,
+    all whole numbers give INT, and numbers with at least one decimal give FLOAT."""
+    kinds = {value_kind(text) for text in texts}
+    if not kinds or "STRING" in kinds:
+        return "STRING"
+    return "FLOAT" if "FLOAT" in kinds else "INT"
+
+
+def typed_output(text: str, kind: str):
+    """Send text as int or float for an INT or FLOAT socket, unchanged for STRING."""
+    if kind == "INT":
+        return int(text.strip())
+    if kind == "FLOAT":
+        return float(text.strip())
+    return text
+
+
+def choice_outputs(text: str, label: str) -> list:
+    """Return the selected option's value for each choice row, in row order, typed by output_type
+    over all options of that row. Value rows are left out."""
+    return [out for _name, _value, _step, out in _parse_rows(text, label) if out is not None]
 
 
 def variables_from_rows(text: str, label: str) -> dict:

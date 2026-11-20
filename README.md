@@ -144,7 +144,7 @@ Names may use letters, digits, `_` and `-`. Rows with a blank name are skipped. 
 
 **Outputs:**
 - `variables` (`STRING`): a JSON object of name to value, for all rows. Connect it to **NodeForge: ResolveString**.
-- One output per choice row (`STRING`, up to 8), in row order (not counting value rows). Each output is labelled with its row's **name**, and it outputs the selected option's **label**, so you can branch on the mode (for example `Scene only`, `Reference only`, `Both`). The number of outputs follows the number of choice rows. Outputs are connected by position among choice rows, so deleting an earlier choice row shifts the later outputs and their links must be reconnected. More than 8 choice rows is an error.
+- One output per choice row (up to 8), in row order (not counting value rows). Each output is labelled with its row's **name**. It outputs the selected option's **value**, not its label. The label is only the text shown in the dropdown. The type follows the values of all options in that row, the same rule as Config Table: every option a whole number gives `INT`, whole numbers with at least one decimal give `FLOAT`, and any other text or an empty option gives `STRING`. The number of outputs follows the number of choice rows. Outputs are connected by position among choice rows, so deleting an earlier choice row shifts the later outputs and their links must be reconnected. Changing a row's type also changes its output type, so reconnect links that no longer match. More than 8 choice rows is an error.
 
 ### NodeForge: ResolveString
 
@@ -210,7 +210,9 @@ Looks up `env` in a table built on the node with buttons and fields, and sends e
 | `env` | STRING, shown as **output tag**. A dropdown that lists the tag names in the table, for example `prod`, `dev` or `plan_pro`. The list updates as tags are added, renamed or removed. Renaming the selected tag keeps it selected under the new name. Removing the selected tag clears the output tag. Matching is exact and case-sensitive. |
 | `table` | Edited with buttons and fields on the node (see below). Stored as text in the workflow. |
 
-**Outputs:** output 1 is always `output_tag` (`STRING`): the selected output tag. After it come one output per key, type `*`, labelled with the key name (for example `width`, `height`). The node shows only as many key outputs as there are keys, up to 10. Values go out in the order of the keys. Renaming a key changes its output label. Outputs removed by deleting keys are dropped from the node, so reconnect any links to the outputs that remain.
+**Outputs:** output 1 is always `output_tag` (`STRING`): the selected output tag. After it come one output per key, labelled with the key name (for example `width`, `height`). The node shows only as many key outputs as there are keys, up to 10. Values go out in the order of the keys. Renaming a key changes its output label. Outputs removed by deleting keys are dropped from the node, so reconnect any links to the outputs that remain.
+
+Each key output takes its type from that key's values in **every** tag, so the type does not change when you switch the output tag. All whole numbers give `INT`. Decimals give `FLOAT`, and mixing whole numbers and decimals also gives `FLOAT`. Any text, or any empty value, gives `STRING`. A key with no tags yet is `STRING`. The output type updates as you edit. Existing links are not removed when a type changes, so reconnect a link whose type no longer matches the new one.
 
 **Values:** each value is 1 word or up to 1000 words. The box stays one line tall and shows the start of the text. Click **⤢** beside a value to see or edit the full text in a popup. Values may contain line breaks. The table stores them as `\n` and a literal backslash as `\\`, so keep these escapes when editing the saved text by hand.
 
@@ -236,7 +238,7 @@ height=100
 - The first non-empty line is `keys:` followed by comma-separated key names (at most 10, no duplicates).
 - Each `[name]` line starts a block. Each `key=value` line after it sets one key. Split on the first `=`.
 - Every block must set every key. Unknown, duplicate or missing keys stop the run with an error.
-- Values are typed automatically: whole numbers become INT, decimals become FLOAT, and anything else stays text.
+- Values are typed automatically: whole numbers are passed as numbers (INT), decimals as FLOAT, and anything else as text. Each key's output type is set from its values (see Outputs), so a number connects straight to an INT or FLOAT input with no converter node.
 
 Rules:
 - An `env` value with no matching block is an error. The message lists the blocks in the table.

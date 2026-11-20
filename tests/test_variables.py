@@ -65,9 +65,28 @@ def test_each_choice_row_gets_its_own_output_in_row_order():
     out = NodeForgeVariables().run(json.dumps(rows))
     assert len(out) == 1 + MAX_CHOICES
     assert json.loads(out[0]) == {"mode": "scene prompt", "shot": "wide", "style": "ref prompt"}
-    assert out[1] == "Scene only"
-    assert out[2] == "Reference only"
+    assert out[1] == "scene prompt"
+    assert out[2] == "ref prompt"
     assert out[3:] == (None,) * (MAX_CHOICES - 2)
+
+
+@pytest.mark.parametrize(
+    "values, index, expected",
+    [
+        (["1", "2"], 1, 2),
+        (["3", "2.5"], 0, 3.0),  # whole numbers mixed with a decimal make the output FLOAT
+        (["-4", "10"], 0, -4),
+        (["5", "wide"], 0, "5"),  # any text keeps the output STRING
+        (["", "5"], 1, "5"),  # an empty option keeps the output STRING
+    ],
+)
+def test_choice_output_is_typed_by_all_options_of_its_row(values, index, expected):
+    options = [{"label": f"o{i}", "value": v} for i, v in enumerate(values)]
+    _, choice, *_ = NodeForgeVariables().run(
+        json.dumps([_choice_row(options=options, selected=f"o{index}")])
+    )
+    assert choice == expected
+    assert type(choice) is type(expected)
 
 
 def test_choice_outputs_are_none_without_choice_rows():
