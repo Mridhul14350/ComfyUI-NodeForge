@@ -100,6 +100,22 @@ def test_list_includes_input_and_output_images(inputs):
     assert list_images() == ["input/red.png", "input/sub/clear.png", "output/green.png"]
 
 
+def test_batch_stacks_picked_images_into_one_pair(inputs):
+    Image.new("RGB", (4, 2), (0, 0, 255)).save(inputs / "blue.png")
+    out = NodeForgeLoadImage().run(images="input/red.png\ninput/blue.png", batch=True)
+    assert tuple(out[0].shape) == (2, 2, 4, 3)
+    assert tuple(out[1].shape) == (2, 2, 4)
+    assert all(v is None for v in out[2:])
+
+
+def test_batch_resizes_pictures_to_the_first_size(inputs):
+    pytest.importorskip("comfy.utils")
+    out = NodeForgeLoadImage().run(images="input/red.png\noutput/green.png", batch=True)
+    assert tuple(out[0].shape) == (2, 2, 4, 3)
+    assert tuple(out[1].shape) == (2, 2, 4)
+    assert all(v is None for v in out[2:])
+
+
 def test_file_path_lines_are_added_to_picked_images(inputs):
     out = NodeForgeLoadImage().run(images="input/red.png", file_path="output/green.png")
     assert tuple(out[0].shape) == (1, 2, 4, 3)

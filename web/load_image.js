@@ -1,5 +1,6 @@
 // NodeForge: Load Image. Picks up to 10 images from input and output and shows
-// them as a grid or a list. Outputs are shown as one IMAGE and one MASK per picked image.
+// them as a grid or a list. Outputs are shown as one IMAGE and one MASK per picked image,
+// or one pair for all picked images when Batch is on.
 
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
@@ -8,7 +9,7 @@ import { ensureCss, fitNodeSize, splitFile, viewUrl } from "./file_ui.js";
 const NODE_NAME = "NodeForgeLoadImage";
 const MAX_IMAGES = 10;
 const LIST_URL = "/nodeforge/load_image/list";
-const SAVED_ORDER = ["image", "images", "display", "file_path"];
+const SAVED_ORDER = ["image", "images", "display", "file_path", "batch"];
 const SOURCE_OPTIONS = [
     ["all", "Both"],
     ["input", "Input"],
@@ -37,6 +38,9 @@ const CSS = `
 .nf-li-toggle button + button { border-left:1px solid rgba(255,255,255,0.16); }
 .nf-li-toggle button:hover { color:#fff; background:rgba(255,255,255,0.1); }
 .nf-li-toggle button.on { background:var(--nf-acc); color:#fff; }
+.nf-li-batch { flex:0 0 auto; height:34px; padding:0 10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.16); border-radius:7px; color:#ddd; font-size:12px; cursor:pointer; box-sizing:border-box; }
+.nf-li-batch:hover { color:#fff; background:rgba(255,255,255,0.1); }
+.nf-li-batch.on { background:var(--nf-acc); border-color:var(--nf-acc); color:#fff; }
 .nf-li-meta { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#9a9a9a; padding:0 2px; }
 .nf-li-view { max-height:260px; overflow:auto; background:#0f0f0f; border:1px solid #2c2c2c; border-radius:7px; padding:6px; box-sizing:border-box; }
 .nf-li-view.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:6px; }
@@ -121,11 +125,16 @@ function displayMode(node) {
     return getWidget(node, "display")?.value === "list" ? "list" : "grid";
 }
 
+function batchOn(node) {
+    return getWidget(node, "batch")?.value === true;
+}
+
 // One IMAGE and one MASK per picked image, at least one pair, at most MAX_IMAGES.
+// In batch mode the picked images form a single pair.
 // Pairs are image_1, mask_1, image_2, ... to match the backend RETURN_TYPES order.
 function syncOutputs(node) {
     if (!node.outputs) return;
-    const count = Math.max(1, Math.min(MAX_IMAGES, selectionOf(node).length));
+    const count = batchOn(node) ? 1 : Math.max(1, Math.min(MAX_IMAGES, selectionOf(node).length));
     const wanted = count * 2;
 
     while (node.outputs.length > wanted) {
@@ -135,13 +144,14 @@ function syncOutputs(node) {
         const slot = Math.floor(i / 2) + 1;
         const isMask = i % 2 === 1;
         const name = `${isMask ? "mask" : "image"}_${slot}`;
+        const label = batchOn(node) ? (isMask ? "masks" : "images") : name;
         const type = isMask ? "MASK" : "IMAGE";
         if (i >= node.outputs.length) {
             node.addOutput(name, type);
         }
         const out = node.outputs[i];
         out.name = name;
-        out.label = name;
+        out.label = label;
         out.type = type;
     }
 
@@ -184,9 +194,18 @@ function renderPreview(node) {
     if (!view) return;
     const values = selectionOf(node);
     const mode = displayMode(node);
-    node.nfImageCount.textContent = `${values.length} of ${MAX_IMAGES} selected`;
+    const batched = batchOn(node);
+    node.nfImageCount.textContent =
+        `${values.length} of ${MAX_IMAGES} selected` + (batched && values.length ? " · batched into 1 output" : "");
     view.className = `nf-li-view ${mode}`;
     markView(node.nfViewButtons, mode);
+    if (node.nfBatchButton) {
+        node.nfBatchButton.classList.toggle("on", batched);
+        node.nfBatchButton.textContent = batched ? "Batch: on" : "Batch: off";
+        node.nfBatchButton.title = batched
+            ? "Output one batched image from all picked images. Click for separate outputs."
+            : "Output each picked image separately. Click to batch them into one output.";
+    }
 
     if (!values.length) {
         view.replaceChildren(el("div", "nf-li-empty", "No images selected. Click Select images."));
@@ -445,10 +464,12 @@ app.registerExtension({
             listBtn.type = "button";
             listBtn.title = "List view";
             listBtn.innerHTML = ICON_LIST;
+            const batchBtn = el("button", "nf-li-batch");
+            batchBtn.type = "button";
             const toggle = el("div", "nf-li-toggle");
             toggle.append(gridBtn, listBtn);
             const bar = el("div", "nf-li-bar");
-            bar.append(pick, toggle);
+            bar.append(pick, batchBtn, toggle);
             const count = el("div", "nf-li-meta");
             const view = el("div", "nf-li-view grid");
             const root = el("div", "nf-lf-root");
@@ -469,9 +490,17 @@ app.registerExtension({
                 renderPreview(this);
                 this.setDirtyCanvas?.(true, true);
             });
+            batchBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setWidgetValue(this, "batch", !batchOn(this));
+                syncOutputs(this);
+                renderPreview(this);
+                this.setDirtyCanvas?.(true, true);
+            });
             this.nfImageView = view;
             this.nfImageCount = count;
             this.nfViewButtons = { grid: gridBtn, list: listBtn };
+            this.nfBatchButton = batchBtn;
             this.nfRefresh = () => renderPreview(this);
 
             const box = this.addDOMWidget("image_box", "custom", root, {
@@ -485,6 +514,9 @@ app.registerExtension({
             // The grid/list toggle above drives this value, so the combo is hidden.
             const display = getWidget(this, "display");
             if (display) setHidden(display);
+            // The Batch button above drives this value, so the toggle is hidden.
+            const batch = getWidget(this, "batch");
+            if (batch) setHidden(batch);
             // Typing a path re-renders the preview and output pairs at once.
             const filePath = getWidget(this, "file_path");
             if (filePath) {
@@ -503,7 +535,7 @@ app.registerExtension({
         nodeType.prototype.onConfigure = function () {
             const saved = Array.isArray(this.widgets_values) ? this.widgets_values : [];
             // Older saves have fewer values (only 'image', or no 'file_path'), so missing slots take their defaults.
-            const defaults = ["", "", "grid", ""];
+            const defaults = ["", "", "grid", "", false];
             const values = SAVED_ORDER.map((_, i) => (saved[i] !== undefined ? saved[i] : defaults[i]));
             this.widgets_values = values;
             const result = onConfigure?.apply(this, arguments);

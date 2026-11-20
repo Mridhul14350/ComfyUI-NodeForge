@@ -66,6 +66,29 @@ def selected_entries(images: str, image: str, file_path: str = "") -> list:
     return entries
 
 
+def batch_images(pairs: list) -> tuple:
+    """Stack (image, mask) pairs into one batch. A picture whose size differs
+    from the first one is resized to it, like ComfyUI's Image Batch node."""
+    import torch
+
+    height, width = pairs[0][0].shape[1:3]
+    images, masks = [], []
+    for image, mask in pairs:
+        if image.shape[1:3] != (height, width):
+            image, mask = _fit_to_size(image, mask, height, width)
+        images.append(image)
+        masks.append(mask)
+    return torch.cat(images), torch.cat(masks)
+
+
+def _fit_to_size(image, mask, height: int, width: int):
+    import comfy.utils
+
+    image = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center")
+    mask = comfy.utils.common_upscale(mask.unsqueeze(1), width, height, "bilinear", "center")
+    return image.movedim(1, -1), mask.squeeze(1)
+
+
 class NodeForgeLoadImage:
     @classmethod
     def INPUT_TYPES(cls):
@@ -100,6 +123,14 @@ class NodeForgeLoadImage:
                         f"images (up to {MAX_IMAGES} in total).",
                     },
                 ),
+                "batch": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Off: one IMAGE and MASK per picked image. On: all picked "
+                        "images are stacked into one batch on image_1 and mask_1.",
+                    },
+                ),
             },
         }
 
@@ -112,14 +143,17 @@ class NodeForgeLoadImage:
     DESCRIPTION = (
         f"Loads up to {MAX_IMAGES} images from the input or output folder. Each image "
         "gives an IMAGE and a MASK output (in order image_1, mask_1, image_2, ...). "
-        "Unused slots are empty. A mask is 1 where the picture is transparent."
+        "Unused slots are empty. A mask is 1 where the picture is transparent. "
+        "With batch on, all images are stacked into one IMAGE and one MASK (image_1, mask_1)."
     )
 
-    def run(self, image="", images="", display="grid", file_path=""):
+    def run(self, image="", images="", display="grid", file_path="", batch=False):
         loaded = [
             load_image_tensors(resolve_image(choice))
             for choice in selected_entries(images, image, file_path)
         ]
+        if batch and loaded:
+            loaded = [batch_images(loaded)]
         outputs = []
         for i in range(MAX_IMAGES):
             if i < len(loaded):
@@ -129,7 +163,7 @@ class NodeForgeLoadImage:
         return tuple(outputs)
 
     @classmethod
-    def IS_CHANGED(cls, image="", images="", display="grid", file_path=""):
+    def IS_CHANGED(cls, image="", images="", display="grid", file_path="", batch=False):
         digest = hashlib.sha256()
         try:
             entries = selected_entries(images, image, file_path)
@@ -145,7 +179,7 @@ class NodeForgeLoadImage:
         return digest.hexdigest()
 
     @classmethod
-    def VALIDATE_INPUTS(cls, image="", images="", display="grid", file_path=""):
+    def VALIDATE_INPUTS(cls, image="", images="", display="grid", file_path="", batch=False):
         # ComfyUI passes None for a linked input during /prompt validation; its paths are checked when the node runs.
         if images is None or file_path is None:
             return True

@@ -106,7 +106,7 @@ Loads one or more images from the ComfyUI **input** and **output** folders (subf
 
 The popup has a filter (**Both**, **Input**, **Output**), a search box, a **Grid** or **List** view, and an **Upload** button. The uploaded image is saved to the ComfyUI input folder. It is added to the picked images if there is room. Uploads are not limited by the 10-image cap, but the selection is. The node preview has a small grid/list button next to **Select images**. Both views remember the last choice in the session.
 
-Each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
+By default each image gets its own output pair. The backend always has 10 pairs; the node shows only as many as are selected (1 image gives 1 pair, 2 images give 2 pairs, and so on). Press the **Batch** button next to **Select images** to switch to batch mode. In batch mode all selected images form one batched `IMAGE` and one `MASK` (the node shows them as `images` and `masks`; the output names stay `image_1` / `mask_1`). Pictures of a different size are resized to the first picture's size with ComfyUI's center crop. The mask is `1 - alpha`, so transparent pixels are 1; with no alpha channel the mask is all zeros. Only the first frame of animated images is read. EXIF rotation is applied.
 
 **Inputs**
 
@@ -115,13 +115,14 @@ Each image gets its own output pair. The backend always has 10 pairs; the node s
 | `images` | empty | Selected files, one per line, set by the popup. Entries start with `input/` or `output/`. |
 | `display` | `grid` | `grid` or `list`. Set by the grid/list button on the node. Controls the preview only. |
 | `file_path` | empty | Optional. Paths under `input/` or `output/`, one per line (backslashes are accepted). They are added to the selected `images`, and duplicates are skipped. The total is capped at 10. |
+| `batch` | `false` | `true` or `false`. Set by the **Batch** button on the node. `true` returns all selected images as one batched pair in `image_1` / `mask_1`. |
 
 **Outputs**
 
 | Output | Type |
 |---|---|
-| `image_1` … `image_10` | `IMAGE`, `[1, H, W, 3]`, float 0–1 |
-| `mask_1` … `mask_10` | `MASK`, `[1, H, W]`, float 0–1 |
+| `image_1` … `image_10` | `IMAGE`, `[1, H, W, 3]`, float 0–1. With `batch` on, `[N, H, W, 3]` in `image_1` only. |
+| `mask_1` … `mask_10` | `MASK`, `[1, H, W]`, float 0–1. With `batch` on, `[N, H, W]` in `mask_1` only. |
 
 Unused pairs are empty (`None`). Selecting no image, or more than 10, is an error.
 
