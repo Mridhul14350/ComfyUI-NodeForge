@@ -8,7 +8,7 @@ import re
 MAX_FILE_BYTES = 10 * 1024 * 1024
 VARIABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 WHOLE_NUMBER_RE = re.compile(r"-?\d+")
-VARIABLE_TOKEN_RE = re.compile(r"%Variables\.([A-Za-z0-9_-]+)%")
+VARIABLE_TOKEN_RE = re.compile(r"%([A-Za-z0-9_-]+)%")
 DATE_TOKEN_RE = re.compile(r"%date:([^%]*)%")
 DATE_FORMAT_RE = re.compile(r"yyyy|yy|MM|dd|hh|mm|ss")
 
@@ -250,13 +250,11 @@ def resolve_dates(text: str, now: datetime.datetime) -> str:
     return DATE_TOKEN_RE.sub(replace, text)
 
 
-def resolve_variables(text: str, variables: dict, label: str) -> str:
-    """Replace each %Variables.name% token with its value. An unknown name is an error."""
+def resolve_variables(text: str, variables: dict) -> str:
+    """Replace each %name% token whose name is a known variable. Any other
+    %...% text is left as it is, so 100%_done% stays unchanged."""
 
     def replace(match):
-        name = match.group(1)
-        if name not in variables:
-            raise ValueError(f"{label}: unknown variable '{name}'")
-        return variables[name]
+        return variables.get(match.group(1), match.group(0))
 
     return VARIABLE_TOKEN_RE.sub(replace, text)

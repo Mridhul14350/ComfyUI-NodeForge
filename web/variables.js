@@ -65,99 +65,200 @@ function optionsError(options) {
     return "";
 }
 
-// Name rows. A value row outputs its typed text (and can step); a choice row outputs the value of the
-// option picked in its dropdown. Output is a JSON list; the node validates it on run.
-function buildVariablesEditor(onChange) {
-    const root = el("div", "nf-var-root");
-    const head = el("div", "nf-var-head");
-    head.append(el("span", "nf-var-title", "variables"), el("span", "nf-var-count"));
-    const list = el("div", "nf-var-list");
-    const add = el("button", "nf-var-add", "+ Add variable");
-    add.type = "button";
-    root.append(head, list, add);
-    const count = head.querySelector(".nf-var-count");
+// Config popup for one variable row. It edits a draft copy: Save hands the draft back, while Cancel or a click outside
+// discards it. The draft holds the type, value, step and options.
+function openVariablePopup(title, draft, onSave) {
+    const overlay = el("div", "nf-rs-overlay");
+    const box = el("div", "nf-rs-popup nf-var-popup");
+    const seg = el("div", "nf-var-seg");
+    const segButtons = new Map();
+    for (const [type, text, tip] of [
+        [TYPE_VALUE, "Value", "Output the typed text"],
+        [TYPE_CHOICE, "Choice", "Output the option picked in the dropdown"],
+    ]) {
+        const b = el("button", "", text);
+        b.type = "button";
+        b.title = tip;
+        b.onclick = () => setType(type);
+        segButtons.set(type, b);
+    }
+    seg.append(...segButtons.values());
+    const body = el("div", "nf-var-popup-body");
 
-    const refresh = () => {
-        const n = [...list.querySelectorAll(".nf-var-name")].filter((i) => i.value.trim()).length;
-        count.textContent = `${n} set`;
+    const setType = (type) => {
+        if (draft.type === type) return;
+        if (type === TYPE_CHOICE && !draft.options.length) {
+            // Keep the typed value as the first option, so switching does not lose it.
+            draft.options = [{ label: "option 1", value: draft.value }];
+        }
+        draft.type = type;
+        renderBody();
     };
 
-    const addRow = (row = {}) => {
-        const rowEl = el("div", "nf-var-row");
-        const nameInput = el("input", "nf-var-name");
-        nameInput.type = "text";
-        nameInput.placeholder = "name";
-        nameInput.spellcheck = false;
-        nameInput.value = String(row.name ?? "");
-        nameInput.addEventListener("input", refresh);
-        const del = el("button", "nf-var-del", "×");
-        del.type = "button";
-        del.title = "Remove variable";
-        del.onclick = () => {
-            rowEl.remove();
-            refresh();
-            onChange();
-        };
-        const nameLine = el("div", "nf-var-line");
-        nameLine.append(nameInput, del);
-
-        const seg = el("div", "nf-var-seg");
-        const segButtons = new Map();
-        for (const [type, text, title] of [
-            [TYPE_VALUE, "Value", "Output the typed text"],
-            [TYPE_CHOICE, "Choice", "Output the option picked in the dropdown"],
-        ]) {
-            const b = el("button", "", text);
-            b.type = "button";
-            b.title = title;
-            b.onclick = () => {
-                if (rowEl.nfType === type) return;
-                applyType(type);
-                refresh();
-                onChange();
-            };
-            segButtons.set(type, b);
-            seg.append(b);
-        }
-
-        const valueInput = el("input", "nf-var-value");
-        valueInput.type = "text";
-        valueInput.placeholder = "value";
-        valueInput.spellcheck = false;
-        valueInput.value = String(row.value ?? "");
-        const stepLabel = el("span", "", "step");
-        const stepInput = el("input", "nf-var-step");
+    const valueSection = () => {
+        const area = el("textarea", "nf-rs-input nf-rs-popup-area");
+        area.value = draft.value;
+        area.placeholder = "value";
+        area.spellcheck = false;
+        area.addEventListener("input", () => {
+            draft.value = area.value;
+        });
+        const stepInput = el("input", "nf-rs-input nf-var-step");
         stepInput.type = "number";
         stepInput.step = "1";
         stepInput.placeholder = "0";
         stepInput.title = "Add this to the value on each run (whole number, blank or 0 = off)";
-        stepInput.value = String(row.step ?? "");
-        stepInput.addEventListener("input", onChange);
-        const valueLine = el("div", "nf-var-line");
-        valueLine.append(valueInput, stepLabel, stepInput);
+        stepInput.value = draft.step;
+        stepInput.addEventListener("input", () => {
+            draft.step = stepInput.value;
+        });
+        const stepLine = el("div", "nf-rs-line");
+        stepLine.append(el("span", "nf-var-label", "step"), stepInput);
+        const section = el("div", "nf-var-opts-sec");
+        section.append(area, stepLine);
+        queueMicrotask(() => area.focus());
+        return section;
+    };
 
-        const choice = el("select", "nf-var-choice");
-        choice.title = "Option to output";
-        rowEl.nfChoice = choice;
-        const expandBtn = el("button", "nf-var-opts");
-        expandBtn.type = "button";
-        const choiceLine = el("div", "nf-var-line");
-        choiceLine.append(choice, expandBtn);
-
-        const body = el("div", "nf-var-line");
-        body.append(seg, valueLine, choiceLine);
-
+    const optionsSection = () => {
+        const section = el("div", "nf-var-opts-sec");
         const optList = el("div", "nf-var-opt-list");
-        const optErr = el("div", "nf-var-err");
-        const optAdd = el("button", "nf-var-add", "+ Add option");
-        optAdd.type = "button";
-        const panel = el("div", "nf-var-panel");
-        panel.append(el("div", "nf-var-sec", "Options"), optList, optErr, optAdd);
+        const errLine = el("div", "nf-var-err");
+        const drawErr = () => {
+            errLine.textContent = optionsError(draft.options.map((o) => ({ label: o.label.trim() })));
+        };
+        const drawOptions = () => {
+            optList.replaceChildren(...draft.options.map((o, i) => optionItem(o, i)));
+            optList.querySelectorAll(".nf-var-text").forEach(autoGrow);
+            drawErr();
+        };
+        const move = (index, dir) => {
+            const opts = draft.options;
+            [opts[index], opts[index + dir]] = [opts[index + dir], opts[index]];
+            drawOptions();
+        };
+        const optionItem = (opt, index) => {
+            const item = el("div", "nf-var-opt");
+            const label = el("input", "nf-rs-input nf-var-opt-label");
+            label.type = "text";
+            label.placeholder = "label (shown in dropdown)";
+            label.spellcheck = false;
+            label.value = opt.label;
+            label.addEventListener("input", () => {
+                opt.label = label.value;
+                drawErr();
+            });
+            const up = rsButton("↑", "Move up", () => move(index, -1));
+            up.classList.add("nf-rs-x");
+            up.disabled = index === 0;
+            const down = rsButton("↓", "Move down", () => move(index, 1));
+            down.classList.add("nf-rs-x");
+            down.disabled = index === draft.options.length - 1;
+            const removeOpt = rsButton("×", "Remove option", () => {
+                draft.options.splice(index, 1);
+                drawOptions();
+            });
+            removeOpt.classList.add("nf-rs-x", "remove");
+            const labelLine = el("div", "nf-rs-line");
+            labelLine.append(label, up, down, removeOpt);
+            const area = el("textarea", "nf-rs-input nf-var-text");
+            area.rows = 1;
+            area.spellcheck = false;
+            area.placeholder = "value (text that is output)";
+            area.dataset.captureWheel = "true";
+            area.value = opt.value;
+            area.addEventListener("input", () => {
+                opt.value = area.value;
+                autoGrow(area);
+            });
+            item.append(labelLine, area);
+            return item;
+        };
+        const addOpt = rsButton("+ Add option", "Add a choice option", () => {
+            let n = draft.options.length + 1;
+            while (draft.options.some((o) => o.label === `option ${n}`)) n++;
+            draft.options.push({ label: `option ${n}`, value: "" });
+            drawOptions();
+            optList.lastElementChild?.querySelector(".nf-var-opt-label")?.focus();
+        });
+        section.append(el("div", "nf-var-sec", "Options"), optList, errLine, addOpt);
+        drawOptions();
+        return section;
+    };
 
+    const renderBody = () => {
+        for (const [t, b] of segButtons) b.classList.toggle("on", t === draft.type);
+        body.replaceChildren(draft.type === TYPE_CHOICE ? optionsSection() : valueSection());
+    };
+
+    const actions = el("div", "nf-rs-popup-actions");
+    actions.append(
+        rsButton("Cancel", "", () => overlay.remove()),
+        rsButton("Save", "", () => {
+            onSave(draft);
+            overlay.remove();
+        }),
+    );
+    box.append(el("div", "nf-rs-popup-head", title), seg, body, actions);
+    overlay.append(box);
+    overlay.addEventListener("mousedown", (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+    document.body.append(overlay);
+    renderBody();
+}
+
+// Name and value per row, in the same table as ResolveString. A value row outputs its typed text. A choice row outputs
+// the option picked in its dropdown. ⚙ opens the popup for the value box, step and options. Output is a JSON list; the
+// node validates it on run.
+function buildVariablesEditor(onChange) {
+    ensureStringCss();
+    const root = el("div", "nf-rs-root");
+    const panel = el("div", "nf-rs-panel");
+    const head = el("div", "nf-rs-colhead");
+    head.append(el("span", "nf-rs-key-col", "name"), el("span", "nf-rs-val-col", "value"), el("span", "nf-rs-spacer"));
+    const list = el("div", "nf-rs-rows");
+    const add = rsButton("+ Add Variables", "Add a variable row", () => {
+        addRow().focus();
+        onChange();
+    });
+    panel.append(head, list, add);
+    root.append(panel);
+
+    const addRow = (row = {}) => {
+        const rowEl = el("div", "nf-rs-line");
+        rowEl.nfType = row.type === TYPE_CHOICE ? TYPE_CHOICE : TYPE_VALUE;
+        rowEl.nfStep = String(row.step ?? "");
         rowEl.nfOptions = Array.isArray(row.options)
             ? row.options.map((o) => ({ label: String(o?.label ?? ""), value: String(o?.value ?? "") }))
             : [];
-        rowEl.nfExpanded = false;
+
+        const nameInput = el("input", "nf-rs-input nf-rs-key");
+        nameInput.type = "text";
+        nameInput.placeholder = "name";
+        nameInput.spellcheck = false;
+        nameInput.value = String(row.name ?? "");
+        nameInput.addEventListener("input", onChange);
+
+        const valueInput = el("input", "nf-rs-input nf-rs-value");
+        valueInput.type = "text";
+        valueInput.placeholder = "value";
+        valueInput.spellcheck = false;
+        // Full value (may contain newlines from the popup); the one-line input shows it flattened.
+        const flat = (s) => s.replace(/\r?\n/g, " ");
+        rowEl.nfValueText = String(row.value ?? "");
+        valueInput.value = flat(rowEl.nfValueText);
+        valueInput.addEventListener("input", () => {
+            if (valueInput.value !== flat(rowEl.nfValueText)) rowEl.nfValueText = valueInput.value;
+            onChange();
+        });
+
+        const choice = el("select", "nf-rs-input nf-var-choice");
+        choice.title = "Option to output";
+        choice.addEventListener("change", onChange);
+        const valueCell = el("div", "nf-var-cell");
+        valueCell.append(valueInput, choice);
+
         const optionKey = (o) => o.label.trim();
         const fillChoices = (keep) => {
             choice.replaceChildren(
@@ -169,138 +270,66 @@ function buildVariablesEditor(onChange) {
             );
             if (keep && rowEl.nfOptions.some((o) => optionKey(o) === keep)) choice.value = keep;
         };
+        fillChoices(String(row.selected ?? ""));
 
-        const renderPanel = () => {
-            const open = rowEl.nfType === TYPE_CHOICE && rowEl.nfExpanded;
-            panel.hidden = !open;
-            expandBtn.classList.toggle("on", open);
-            const n = rowEl.nfOptions.length;
-            expandBtn.textContent = `${n} option${n === 1 ? "" : "s"} ${rowEl.nfExpanded ? "▴" : "▾"}`;
-        };
-        const drawErr = () => {
-            optErr.textContent = optionsError(rowEl.nfOptions.map((o) => ({ label: optionKey(o), value: o.value })));
+        const renderRow = () => {
+            const choiceRow = rowEl.nfType === TYPE_CHOICE;
+            valueInput.hidden = choiceRow;
+            choice.hidden = !choiceRow;
         };
 
-        const move = (index, dir) => {
-            const opts = rowEl.nfOptions;
-            [opts[index], opts[index + dir]] = [opts[index + dir], opts[index]];
-            fillChoices(choice.value);
-            drawOptions();
-            onChange();
-        };
-        const iconButton = (text, title, onClick) => {
-            const b = el("button", "nf-var-del", text);
-            b.type = "button";
-            b.title = title;
-            b.onclick = onClick;
-            return b;
-        };
-        const optionItem = (opt, index) => {
-            const item = el("div", "nf-var-opt");
-            const label = el("input", "nf-var-opt-label");
-            label.type = "text";
-            label.placeholder = "label (shown in dropdown)";
-            label.spellcheck = false;
-            label.value = opt.label;
-            label.addEventListener("input", () => {
-                // Keep the dropdown on the same option when its label is edited.
-                const wasSelected = choice.value === optionKey(opt);
-                opt.label = label.value;
-                fillChoices(wasSelected ? optionKey(opt) : choice.value);
-                drawErr();
-            });
-            const up = iconButton("↑", "Move up", () => move(index, -1));
-            up.disabled = index === 0;
-            const down = iconButton("↓", "Move down", () => move(index, 1));
-            down.disabled = index === rowEl.nfOptions.length - 1;
-            const remove = iconButton("×", "Remove option", () => {
-                rowEl.nfOptions.splice(index, 1);
-                fillChoices(choice.value);
-                drawOptions();
+        const config = rsButton("⚙", "Configure this variable: value, step and options", () => {
+            const draft = {
+                type: rowEl.nfType,
+                value: rowEl.nfValueText,
+                step: rowEl.nfStep,
+                options: rowEl.nfOptions.map((o) => ({ ...o })),
+                selected: choice.value,
+            };
+            openVariablePopup(`Variable: ${nameInput.value.trim() || "(unnamed)"}`, draft, (saved) => {
+                rowEl.nfType = saved.type;
+                rowEl.nfStep = saved.step;
+                rowEl.nfOptions = saved.options;
+                rowEl.nfValueText = saved.value;
+                valueInput.value = flat(saved.value);
+                fillChoices(saved.selected);
+                renderRow();
                 onChange();
             });
-            const line = el("div", "nf-var-line");
-            line.append(label, up, down, remove);
-            const area = el("textarea", "nf-var-text");
-            area.rows = 1;
-            area.spellcheck = false;
-            area.placeholder = "value (text that is output)";
-            area.dataset.captureWheel = "true";
-            area.value = opt.value;
-            area.addEventListener("input", () => {
-                opt.value = area.value;
-                autoGrow(area);
-            });
-            item.append(line, area);
-            return item;
-        };
-        const drawOptions = () => {
-            optList.replaceChildren(...rowEl.nfOptions.map((o, i) => optionItem(o, i)));
-            optList.querySelectorAll(".nf-var-text").forEach(autoGrow);
-            drawErr();
-            renderPanel();
-        };
+        });
+        config.classList.add("nf-rs-x");
 
-        const applyType = (type) => {
-            if (type === TYPE_CHOICE && !rowEl.nfOptions.length) {
-                // Keep the typed value as the first option, so switching does not lose it.
-                rowEl.nfOptions = [{ label: "option 1", value: valueInput.value }];
-                fillChoices();
-            }
-            rowEl.nfType = type;
-            for (const [t, b] of segButtons) b.classList.toggle("on", t === type);
-            valueLine.hidden = type === TYPE_CHOICE;
-            choiceLine.hidden = type !== TYPE_CHOICE;
-            drawOptions();
-        };
-
-        expandBtn.onclick = () => {
-            rowEl.nfExpanded = !rowEl.nfExpanded;
-            renderPanel();
+        const remove = rsButton("×", "Remove this row", () => {
+            rowEl.remove();
             onChange();
-        };
-        optAdd.onclick = () => {
-            let n = rowEl.nfOptions.length + 1;
-            while (rowEl.nfOptions.some((o) => o.label === `option ${n}`)) n++;
-            rowEl.nfOptions.push({ label: `option ${n}`, value: "" });
-            fillChoices(choice.value);
-            drawOptions();
-            onChange();
-            const labels = optList.querySelectorAll(".nf-var-opt-label");
-            labels[labels.length - 1]?.focus();
-        };
+        });
+        remove.classList.add("nf-rs-x", "remove");
 
-        rowEl.append(nameLine, body, panel);
-        fillChoices(String(row.selected ?? ""));
-        applyType(row.type === TYPE_CHOICE ? TYPE_CHOICE : TYPE_VALUE);
+        rowEl.append(nameInput, valueCell, config, remove);
+        rowEl.nfName = nameInput;
+        rowEl.nfValue = valueInput;
+        rowEl.nfChoice = choice;
+        renderRow();
         list.append(rowEl);
-        refresh();
         return nameInput;
     };
 
-    add.onclick = () => {
-        addRow().focus();
-        onChange();
-    };
-
-    const box = {
+    return {
         root,
         get() {
-            const rows = [...list.querySelectorAll(".nf-var-row")].map((rowEl) => {
-                const name = rowEl.querySelector(".nf-var-name").value;
+            const rows = [...list.children].map((rowEl) => {
                 if (rowEl.nfType === TYPE_CHOICE) {
-                    const out = {
-                        name,
+                    return {
+                        name: rowEl.nfName.value,
                         type: TYPE_CHOICE,
                         selected: rowEl.nfChoice.value,
                         options: rowEl.nfOptions.map((o) => ({ label: o.label.trim(), value: o.value })),
                     };
-                    return out;
                 }
                 return {
-                    name,
-                    value: rowEl.querySelector(".nf-var-value").value,
-                    step: rowEl.querySelector(".nf-var-step").value,
+                    name: rowEl.nfName.value,
+                    value: rowEl.nfValueText,
+                    step: rowEl.nfStep,
                 };
             });
             return JSON.stringify(rows);
@@ -311,21 +340,21 @@ function buildVariablesEditor(onChange) {
                 addRow(row ?? {});
             }
             if (!list.children.length) addRow();
-            refresh();
             // Not laid out yet while the workflow loads, so measure again on the next frame.
             requestAnimationFrame(onChange);
         },
     };
-    return box;
 }
 
-// Keep one output per choice row, named v_choice_1, v_choice_2, ... in row order. Output 0 is `variables`.
+// One output per named choice row, in row order, labelled with the row name. Output 0 is `variables`.
+// The internal name stays v_choice_N so the slot index and links are unaffected by renames.
 function syncChoiceOutputs(node) {
     if (!node.outputs || !node.nfVariables) return;
-    const choices = parseRows(node.nfVariables.get()).filter(
-        (r) => r?.type === TYPE_CHOICE && String(r.name ?? "").trim(),
-    ).length;
-    const wanted = 1 + Math.min(MAX_CHOICES, choices);
+    const names = parseRows(node.nfVariables.get())
+        .filter((r) => r?.type === TYPE_CHOICE && String(r.name ?? "").trim())
+        .map((r) => String(r.name).trim())
+        .slice(0, MAX_CHOICES);
+    const wanted = 1 + names.length;
     while (node.outputs.length > wanted) {
         node.removeOutput(node.outputs.length - 1);
     }
@@ -335,7 +364,7 @@ function syncChoiceOutputs(node) {
     for (let i = 1; i < wanted; i++) {
         const out = node.outputs[i];
         out.name = `v_choice_${i}`;
-        out.label = `v_choice_${i}`;
+        out.label = names[i - 1];
         out.type = "STRING";
     }
     resizeToContent(node);
@@ -362,11 +391,32 @@ const RS_CSS = `
 .nf-rs-x:hover { border-color:var(--nf-acc); color:#fff; }
 .nf-rs-x.remove:hover { border-color:#e05a5a; }
 .nf-rs-hint { color:#8a8a8a; font-size:11px; padding:6px 2px; }
-.nf-rs-overlay { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
+.nf-rs-overlay { --nf-acc:#4ea8ff; position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
 .nf-rs-popup { width:min(560px,90vw); display:flex; flex-direction:column; gap:8px; padding:12px; box-sizing:border-box; background:#1a1a1a; border:1px solid #3a3a3a; border-radius:9px; color:#ddd; font:13px sans-serif; }
 .nf-rs-popup-head { color:var(--nf-acc); font-weight:600; }
 .nf-rs-popup-area { min-height:240px; resize:vertical; line-height:1.4; white-space:pre-wrap; overflow:auto; }
 .nf-rs-popup-actions { display:flex; justify-content:flex-end; gap:6px; }
+.nf-rs-root [hidden] { display:none !important; }
+.nf-rs-x.on { border-color:var(--nf-acc); color:#fff; }
+.nf-var-cell { flex:1 1 auto; min-width:0; display:flex; gap:5px; }
+.nf-var-cell .nf-rs-input { flex:1 1 auto; }
+.nf-var-seg { display:flex; flex:0 0 auto; border:1px solid #3a3a3a; border-radius:5px; overflow:hidden; }
+.nf-var-seg button { height:24px; background:#1d1d1d; border:none; color:#999; font:inherit; padding:0 8px; cursor:pointer; }
+.nf-var-seg button + button { border-left:1px solid #3a3a3a; }
+.nf-var-seg button:hover { color:#fff; }
+.nf-var-seg button.on { background:var(--nf-acc); color:#fff; }
+.nf-var-label { color:#8a8a8a; font-size:11px; }
+.nf-var-step { flex:0 0 64px; width:64px; }
+.nf-var-choice { padding:0 4px; }
+.nf-var-sec { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--nf-acc); }
+.nf-var-opts-sec, .nf-var-opt-list { display:flex; flex-direction:column; gap:5px; }
+.nf-var-opt { display:flex; flex-direction:column; gap:4px; padding:5px; background:#202020; border:1px solid #2e2e2e; border-radius:5px; }
+.nf-var-opt-label { flex:1 1 auto; }
+.nf-var-text { line-height:16px; padding:4px 6px; resize:none; overflow:hidden; white-space:pre-wrap; }
+.nf-var-err { font-size:10px; color:#e0a33e; }
+.nf-var-err:empty { display:none; }
+.nf-var-popup { width:min(600px,90vw); }
+.nf-var-popup-body { display:flex; flex-direction:column; gap:8px; }
 `;
 
 function ensureStringCss() {
@@ -566,6 +616,7 @@ app.registerExtension({
                     },
                     getMinHeight: () => editor.root.scrollHeight,
                 });
+                this.setSize?.([Math.max(this.size[0], 460), this.size[1]]);
                 syncChoiceOutputs(this);
                 resizeToContent(this);
                 return result;

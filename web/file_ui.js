@@ -85,44 +85,6 @@ summary.nf-kp-row::-webkit-details-marker { display:none; }
 .nf-keys-clear:hover { border-color:var(--nf-acc); color:#fff; }
 .nf-keys { flex:1 1 auto; min-height:60px; box-sizing:border-box; width:100%; background:#1d1d1d; color:#ddd; border:1px solid #3a3a3a; border-radius:5px; padding:6px 8px; font:11px ui-monospace, Consolas, monospace; line-height:1.45; resize:none; outline:none; scrollbar-width:thin; scrollbar-color:#444 transparent; }
 .nf-keys:focus { border-color:var(--nf-acc); }
-.nf-var-root { --nf-acc:${NF_ACCENT}; display:flex; flex-direction:column; gap:6px; box-sizing:border-box; width:100%; padding:6px 8px 8px; font-size:11px; color:#ddd; }
-.nf-var-head { display:flex; align-items:center; gap:8px; min-height:18px; }
-.nf-var-title { font-size:12px; font-weight:500; color:#ddd; }
-.nf-var-count { flex:1; text-align:right; font-size:10px; color:#8a8a8a; }
-.nf-var-list { display:flex; flex-direction:column; gap:6px; }
-.nf-var-row { display:flex; flex-direction:column; gap:4px; box-sizing:border-box; padding:6px; background:#232323; border:1px solid #2e2e2e; border-radius:4px; }
-.nf-var-row-text { flex-direction:row; align-items:flex-start; gap:4px; }
-.nf-var-line { display:flex; align-items:center; gap:4px; min-width:0; }
-.nf-var-root [hidden] { display:none !important; }
-.nf-var-name, .nf-var-value, .nf-var-step, .nf-var-text, .nf-var-opt-label { box-sizing:border-box; min-width:0; background:#1d1d1d; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:4px 6px; font:11px ui-monospace, Consolas, monospace; outline:none; }
-.nf-var-name { flex:1 1 auto; }
-.nf-var-value { flex:1 1 auto; }
-.nf-var-opt-label { flex:1 1 auto; }
-.nf-var-seg { display:flex; flex:0 0 auto; border:1px solid #333; border-radius:4px; overflow:hidden; }
-.nf-var-seg button { background:#1d1d1d; border:none; color:#999; font:11px sans-serif; padding:3px 7px; cursor:pointer; }
-.nf-var-seg button + button { border-left:1px solid #333; }
-.nf-var-seg button:hover { color:#fff; }
-.nf-var-seg button.on { background:var(--nf-acc); color:#fff; }
-.nf-var-panel { display:flex; flex-direction:column; gap:5px; padding:6px; background:#1b1b1b; border:1px solid #2e2e2e; border-radius:4px; }
-.nf-var-sec { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--nf-acc); }
-.nf-var-opt-list { display:flex; flex-direction:column; gap:5px; }
-.nf-var-opt { display:flex; flex-direction:column; gap:4px; padding:5px; background:#202020; border:1px solid #2e2e2e; border-radius:4px; }
-.nf-var-err { font-size:10px; color:#e0a33e; }
-.nf-var-err:empty { display:none; }
-.nf-var-step { width:72px; flex:0 0 72px; }
-.nf-var-text { flex:1 1 auto; min-height:38px; padding:6px 8px; font-size:12px; line-height:1.4; overflow:hidden; resize:none; }
-.nf-var-name:focus, .nf-var-value:focus, .nf-var-step:focus, .nf-var-text:focus, .nf-var-opt-label:focus { border-color:var(--nf-acc); }
-.nf-var-del { flex:0 0 auto; width:20px; height:20px; padding:0; background:transparent; border:1px solid transparent; border-radius:4px; color:#888; font-size:14px; line-height:1; cursor:pointer; }
-.nf-var-del:hover { color:var(--nf-acc); background:color-mix(in srgb, var(--nf-acc) 12%, transparent); }
-.nf-var-add { align-self:flex-start; box-sizing:border-box; min-width:86px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 12px; color:rgba(255,255,255,0.85); font:11px sans-serif; cursor:pointer; }
-.nf-var-add:hover:not(:disabled) { background:var(--nf-acc); border-color:var(--nf-acc); color:#fff; }
-.nf-var-add:disabled { opacity:.35; cursor:default; }
-.nf-var-del:disabled { opacity:.35; cursor:default; }
-.nf-var-choice { box-sizing:border-box; min-width:0; background:#1d1d1d; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:3px 4px; font:11px sans-serif; outline:none; }
-.nf-var-choice { flex:1 1 auto; }
-.nf-var-choice:focus { border-color:var(--nf-acc); }
-.nf-var-opts { flex:0 0 auto; box-sizing:border-box; padding:3px 8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:4px; color:rgba(255,255,255,0.85); font:11px sans-serif; white-space:nowrap; cursor:pointer; }
-.nf-var-opts:hover, .nf-var-opts.on { background:var(--nf-acc); border-color:var(--nf-acc); color:#fff; }
 `;
 
 function el(tag, className, text) {

@@ -1,5 +1,5 @@
 """NodeForge: Variables sets named values. NodeForge: ResolveString replaces
-%Variables.name% and %date:FORMAT% tokens in one or more strings."""
+%name% and %date:FORMAT% tokens in one or more strings."""
 
 import datetime
 import json
@@ -86,7 +86,7 @@ class NodeForgeResolveString:
         values = variables_from_json(variables, RESOLVE_LABEL)
         now = datetime.datetime.now()
         resolved = [
-            resolve_variables(resolve_dates(text, now), values, RESOLVE_LABEL)
+            resolve_variables(resolve_dates(text, now), values)
             for _key, text in rows
         ]
         return tuple(resolved + [None] * (MAX_STRINGS - len(resolved)))

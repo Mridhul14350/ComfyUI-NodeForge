@@ -132,23 +132,25 @@ The node re-runs when any selected file content changes. Requires `torch`, `nump
 
 Category: `NodeForge/Text`
 
-Sets named text values. Click **+ Add variable** to add a row, and × to remove it. Each row has a **name** and a **value**. The count is unlimited.
+Sets named text values. The editor is a NAME / VALUE table, like ResolveString. Click **+ Add Variables** to add a row, and × to remove it. The value box is wide. The count is unlimited.
 
 Names may use letters, digits, `_` and `-`. Rows with a blank name are skipped. A name used twice is an error.
 
-**Increment:** the small **+step** box adds a whole number to the value on each run. Leave it blank or `0` for no change. With value `1` and step `2`, the runs give `1`, `3`, `5`. A negative step counts down. Leading zeros are kept, so `001` with step `1` gives `002`. The value must be a whole number. The count is kept by the server and restarts from the typed value when you change it or restart ComfyUI.
+**Config (⚙):** click ⚙ on a row to open its popup. The popup holds the **Value / Choice** toggle, a larger value box for multi-line text, the **step**, and (for a choice row) the options. **Save** applies the changes; **Cancel**, or a click outside the popup, discards them. The table shows the value, or the dropdown for a choice row.
 
-**Choice:** switch a row's **Value / Choice** toggle to **Choice** to pick one of several options. The options are hidden by default. Click the **N options ▾** button to expand them inline, where you can add, edit, reorder, or remove options. Each option has a **label** (shown in the dropdown) and a **value** (the text that is output, can be several lines). Labels must be unique. Use the dropdown on the node to pick the active option. A choice row has no step.
+**Increment:** in the ⚙ popup, the **step** box adds a whole number to the value on each run. Leave it blank or `0` for no change. With value `1` and step `2`, the runs give `1`, `3`, `5`. A negative step counts down. Leading zeros are kept, so `001` with step `1` gives `002`. The value must be a whole number. The count is kept by the server and restarts from the typed value when you change it or restart ComfyUI.
+
+**Choice:** in the ⚙ popup, switch the toggle to **Choice** to pick one of several options. The table then shows a dropdown in place of the value. The **Options** list lets you add, edit, reorder (↑ ↓), or remove options. Each option has a **label** (shown in the dropdown) and a **value** (the text that is output, can be several lines). Labels must be unique. Use the dropdown on the node to pick the active option. A choice row has no step.
 
 **Outputs:**
 - `variables` (`STRING`): a JSON object of name to value, for all rows. Connect it to **NodeForge: ResolveString**.
-- `v_choice_1` … `v_choice_8` (`STRING`): one output per choice row, in row order (not counting value rows). Each outputs the selected option's **label**, so you can branch on the mode (for example `Scene only`, `Reference only`, `Both`). The number of outputs follows the number of choice rows. Numbers are by position among choice rows only, so deleting an earlier choice row renumbers the later ones and their links must be reconnected. More than 8 choice rows is an error.
+- One output per choice row (`STRING`, up to 8), in row order (not counting value rows). Each output is labelled with its row's **name**, and it outputs the selected option's **label**, so you can branch on the mode (for example `Scene only`, `Reference only`, `Both`). The number of outputs follows the number of choice rows. Outputs are connected by position among choice rows, so deleting an earlier choice row shifts the later outputs and their links must be reconnected. More than 8 choice rows is an error.
 
 ### NodeForge: ResolveString
 
 Category: `NodeForge/Text`
 
-Replaces `%Variables.name%` and `%date:FORMAT%` tokens in one or more strings. The editor is a KEY / VALUE table. Click **+ Add key** to add a row, and × to remove it. The value box is wide, and ⤢ opens it in a larger editor for multi-line text. Up to 16 rows.
+Replaces `%name%` (a Variables name) and `%date:FORMAT%` tokens in one or more strings. The editor is a KEY / VALUE table. Click **+ Add key** to add a row, and × to remove it. The value box is wide, and ⤢ opens it in a larger editor for multi-line text. Up to 16 rows.
 
 Each row's **key** is the output's label, so name it for what it carries (for example `image_prefix`). Keys must be filled in and unique; a blank or duplicate key is an error and is shown in red. Workflows saved with the older plain-text list still load; their outputs are named by position.
 
@@ -157,11 +159,11 @@ Each row's **key** is the output's label, so name it for what it carries (for ex
 | Input | Notes |
 |---|---|
 | `strings` | One KEY / VALUE row per output. Set by the node, not a socket. |
-| `variables` | Optional. Connect the output of **NodeForge: Variables**. Without it, any token is an error. |
+| `variables` | Optional. Connect the output of **NodeForge: Variables**. Without it, `%name%` tokens are left as text. |
 
 **Outputs:** `string_1` … `string_N`, one per row, `STRING`. Each output is labelled with its row's key. The number of outputs follows the number of rows. Output names stay positional, so links are not affected by renaming a key.
 
-Example: a Variables row `folder_001` = `tmp001`, and a string `output/%Variables.folder_001%/prompt_00001.txt` resolves to `output/tmp001/prompt_00001.txt`. Connect `string_1` to a Save node's `filename_prefix` to use the result there.
+Example: a Variables row `folder_001` = `tmp001`, and a string `output/%folder_001%/prompt_00001.txt` resolves to `output/tmp001/prompt_00001.txt`. Use the name alone, without a prefix. A `%...%` that matches no variable name is left unchanged, so `100%_done%` stays as typed. Two tokens cannot share one `%`: in `%x%y%`, where `x` is unknown, `%y%` is not replaced. Write `%x%%y%` or put a character between them. Old `%Variables.name%` tokens are not replaced and must be changed to `%name%`. Connect `string_1` to a Save node's `filename_prefix` to use the result there.
 
 Date tokens use the same format letters as core ComfyUI: `yyyy`, `yy`, `MM`, `dd`, `hh` (24-hour), `mm`, `ss`. For example `%date:yyyy-MM-dd_hh-mm-ss%` gives `2026-11-18_02-23-10`. The time is the server's local time when the queue runs, and all strings in one run share the same time.
 

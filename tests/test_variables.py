@@ -148,23 +148,23 @@ def test_resolve_is_changed_forces_rerun_only_when_a_date_token_is_present():
 
 
 def test_resolve_replaces_tokens_and_keeps_other_text():
-    text = "output/%Variables.folder_001%/prompt_%Variables.n-1%.txt %date:yyyy%"
+    text = "output/%folder_001%/prompt_%n-1%.txt %date:yyyy%"
     variables = {"folder_001": "tmp001", "n-1": "7"}
     assert (
-        resolve_variables(text, variables, "t")
+        resolve_variables(text, variables)
         == "output/tmp001/prompt_7.txt %date:yyyy%"
     )
 
 
-def test_resolve_unknown_variable_raises_with_name():
-    with pytest.raises(ValueError, match="unknown variable 'missing'"):
-        resolve_variables("%Variables.missing%", {}, "t")
+def test_resolve_leaves_unknown_and_old_style_tokens_unchanged():
+    text = "100%_done% %missing% %Variables.shot%"
+    assert resolve_variables(text, {"shot": "a"}) == "100%_done% %missing% %Variables.shot%"
 
 
 def test_resolve_string_node_resolves_each_row_and_pads_outputs():
     rows = json.dumps(
         [
-            {"key": "first", "value": "out/%Variables.f%/a.png"},
+            {"key": "first", "value": "out/%f%/a.png"},
             {"key": "second", "value": "plain"},
         ]
     )
@@ -207,13 +207,13 @@ def test_resolve_dates_leaves_other_percent_text_alone():
 
 
 def test_resolve_string_node_expands_date_and_variable_tokens():
-    strings = json.dumps(["%Variables.shot%_%date:yyyy%"])
+    strings = json.dumps(["%shot%_%date:yyyy%"])
     out = NodeForgeResolveString().run(strings, json.dumps({"shot": "scene_a"}))
     assert out[0] == f"scene_a_{datetime.datetime.now():%Y}"
 
 
 def test_variable_value_containing_date_token_is_not_expanded():
-    strings = json.dumps(["%Variables.raw%"])
+    strings = json.dumps(["%raw%"])
     out = NodeForgeResolveString().run(strings, json.dumps({"raw": "%date:yyyy%"}))
     assert out[0] == "%date:yyyy%"
 
