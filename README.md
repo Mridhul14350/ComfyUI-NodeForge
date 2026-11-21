@@ -173,29 +173,41 @@ Tokens are replaced once (values are not expanded again). Dates are replaced fir
 
 Category: `NodeForge/Flow`
 
-Works like a `match`/`case` or `switch` statement. It compares `value` with the case labels in `cases`, one per line, in order. Line N goes to `case_result_N`. The first match wins, and no later case is checked. Only the selected input is evaluated, so unused branches (for example expensive image nodes) never run.
+Works like a `match`/`case` or `switch` statement. It compares `value` with the case values in the **cases table**, top to bottom. Row N goes to `case_result_N`. The first match wins, and no later case is checked. Only the selected input is evaluated, so unused branches (for example expensive image nodes) never run.
+
+**The cases table**
+
+The node shows its rows and an **+ Add case** button. Each click shows one more row and adds one matching `case_result_N` input, up to 10. A row is shown from the start when it has a value or a connected output. Each row has, in order:
+- a number (`1` to `10`) that is the row's position. Row N goes to `case_result_N`,
+- a **Label** that says what the case means (for example `Portrait`). New rows are named `Case 01`, `Case 02`, and so on. Edit the label to rename the case. Labels are shown on the node and on the input dots. They are never used for matching,
+- a **Value** that `value` is compared with,
+- a **×** button that deletes the row.
+
+Deleting a row also removes its `case_result_N` input. Links on the rows below move up one slot, and a deleted row's link is removed. Default labels (`Case NN`) are renumbered to match their new position. Custom labels move with their row.
+
+Each case input dot shows only its row's label. A row saved with an empty label shows its default name (`Case NN`). The `default` input is shown as `default (no match)`. Inputs and their links are kept when you add a case or reload the workflow. Linked rows are blue and unlinked filled rows are yellow, so you can see at a glance which rows still need a link. The node shows no warning text.
 
 **Inputs**
 
 | Input | Notes |
 |---|---|
 | `value` | INT or STRING. Connect a value, for example a Primitive or a string output. |
-| `cases` | Multiline. One label per line. Lines are trimmed, trailing empty lines are ignored. Empty lines in the middle still take a case number but never match. |
-| `case_result_1` … `case_result_10` | Optional, lazy. Any type. Each one is evaluated only when its label is selected. |
-| `default` | Optional, lazy. Used when no label matches. |
-| `on_no_match` | `error` (default) raises an error that names the value. `block` stops downstream nodes from running, without an error. |
-| `string_match` | `case_sensitive` (default) or `case_insensitive`. Affects STRING values only. |
+| `cases` | The table above, saved as JSON rows of `value` and `label`. Workflows saved with one value per line still load, and the table is filled from those values (without labels). |
+| `case_result_1` … `case_result_10` | Optional, lazy. Any type. One input per row, added with **+ Add case**. Each one is evaluated only when its row's value is selected. |
+| `default` | Optional, lazy. Used when no label matches. If no label matches and `default` is not connected, the run fails with an error that names the value. |
 
-**Output:** `result`, type `*`. Connect it to any node that accepts the selected type.
+**Output:** `output`, type `*`. Connect it to any node that accepts the selected type.
 
 Rules:
+- STRING values match case-insensitively (`Portrait` matches `portrait`).
 - For an INT value, labels are read as integers. A label that is not a whole number (for example `abc` or `1.5`) never matches.
 - A value that is not INT or STRING is an error.
-- A matched label whose `case_result_N` input is not connected is an error, even when `on_no_match` is `block`.
-- Labels beyond line 10 have no input. If one matches, the node raises an error.
-- With `default` connected and no match, the default is used and `on_no_match` is not applied.
+- A matched row whose `case_result_N` input is not connected is an error.
+- Rows beyond 10 have no input. A saved table or text with more than 10 rows raises an error when a matched value is beyond row 10.
+- Labels are display-only. A run with the value `Portrait` does not match a row whose label is `Portrait`.
+- With `default` connected and no match, the default is used.
 
-Example: `value` = `2`, `cases` = `1` / `2` / `3`, with image branches on `case_result_1`–`_3`. Only the image branch for `2` runs.
+Example: `value` = `2`, cases table rows `1` (label `Red`), `2` (label `Green`), `3` (label `Blue`), with image branches on `case_result_1`–`_3`. Only the Green branch (`case_result_2`) runs.
 
 ### NodeForge: Config Table
 
