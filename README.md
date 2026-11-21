@@ -221,9 +221,10 @@ The node starts with one row. Each **+ Add branch** click shows one more row and
 - a number (`1` to `10`) that is the row's position. Row N is checked as `branch_N`,
 - a **Label** (default `Branch 01`, `Branch 02`, and so on). It is shown on the input dot and is only for display,
 - a **Condition**: a Python expression that is true or false,
+- a **⚙** button that opens the row's settings popup: a larger **Condition** box and the **Transform** (see below). The button shows a dot when a transform is set,
 - a **×** button that deletes the row and its `branch_N` input. Links below it move up one slot, and later default labels are renumbered.
 
-The **else** row at the bottom has no condition. Its `else` input is used when no branch is true. It does not count toward the 10 branches.
+The **else** row at the bottom has no condition. Its `else` input is used when no branch is true. It does not count toward the 10 branches. It also has a **⚙** button for its transform (see below).
 
 Blue rows have a condition and a connected input. Yellow rows have a condition without a connected input, or a connected input without a condition. A yellow row fails the run when it is selected, so connect or fill it in.
 
@@ -235,6 +236,18 @@ Blue rows have a condition and a connected input. Yellow rows have a condition w
 - Operators: `and`, `or`, `not`, `+`, `-`, `*`, `/`, `//`, `%`, comparisons, `in`, `is`, and parentheses. `**` is not allowed.
 - Only these expressions are allowed. Attribute access (`x.upper()`), indexing (`x[0]`), lambdas, imports and names that start with `_` are rejected with an error.
 - Connect the **variables** input to the output of **NodeForge: Variables** when a condition uses variables.
+
+**Transform (per branch)**
+
+A branch can change its text before it reaches `output`. Open the row's **⚙** popup and fill in **Transform when true**. The transform runs only when that branch is selected, and its result replaces the branch input. Other branches are not changed. An empty transform sends the input through unchanged.
+
+The **else** row's **⚙** popup has the same transform, labelled **Transform when no condition is true**. It runs only when `else` is used. Leaving it empty sends the `else` input through unchanged. The saved table keeps the plain list of rows unless the else transform is set. Then it is stored as `{"branches": [...], "else": {...}}`.
+
+The popup has two modes:
+- **Template** (default): text with placeholders. `%input%` is the incoming text, and `%name%` is a variable from **NodeForge: Variables**. Newlines are kept. Example: `%input%` followed by a new line and `Style: %style%`. A name that is not a variable is left as written, so `100%_done%` stays unchanged.
+- **Expression**: a Python expression that returns text. `input` is the incoming text, and variables are used by name, with the same helpers as conditions. Use `str(...)` to join a number. Example: `input + " / " + str(count)`. Attribute access and the other restrictions for conditions apply.
+
+A transform needs text input. If a branch that has a transform gets an image or another non-text value, the run stops with an error. Without a transform, any type passes through.
 
 **Inputs**
 
@@ -250,6 +263,8 @@ Blue rows have a condition and a connected input. Yellow rows have a condition w
 Errors (the run stops and the message names the node):
 - A reached row has no condition.
 - A condition is invalid, not allowed, or fails at run time (for example a variable is missing). The message gives the row and the expression.
+- A transform fails, for example an expression that is not allowed (such as `input.upper()`). The message gives the row and the transform.
+- A transform is set on a branch or on `else` whose input is not text.
 - No condition is true and `else` is not connected.
 - The selected branch is not connected.
 - More than 10 branches in the saved table.

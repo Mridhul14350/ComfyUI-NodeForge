@@ -92,3 +92,87 @@ def test_empty_condition_is_an_error():
 def test_more_than_max_branches_is_an_error():
     with pytest.raises(ValueError, match=f"limit is {MAX_BRANCHES}"):
         select_branch(table(*["1 == 2"] * (MAX_BRANCHES + 1)), "")
+
+
+def transform_table(condition, transform="", mode=None):
+    row = {"label": "B1", "condition": condition, "transform": transform}
+    if mode is not None:
+        row["transform_mode"] = mode
+    return json.dumps([row])
+
+
+def test_empty_transform_passes_the_input_through_unchanged():
+    payload = object()
+    assert NodeForgeIfElse().run(transform_table("1 == 1"), "", branch_1=payload) == (payload,)
+
+
+def test_template_keeps_the_input_and_appends_text_and_a_variable():
+    out = NodeForgeIfElse().run(
+        transform_table("1 == 1", "%input%\n\nStyle: %style%"), json.dumps({"style": "noir"}), branch_1="a scene"
+    )
+    assert out == ("a scene\n\nStyle: noir",)
+
+
+def test_template_without_input_token_replaces_the_text():
+    assert NodeForgeIfElse().run(transform_table("1 == 1", "Fixed"), "", branch_1="ignored") == ("Fixed",)
+
+
+def test_template_leaves_unknown_tokens_as_they_are():
+    out = NodeForgeIfElse().run(transform_table("1 == 1", "%missing% %input%"), "", branch_1="x")
+    assert out == ("%missing% x",)
+
+
+def test_template_transform_needs_text_input():
+    with pytest.raises(ValueError, match="B1 has a transform, but its input is not text"):
+        NodeForgeIfElse().run(transform_table("1 == 1", "%input%"), "", branch_1=object())
+
+
+def test_expression_transform_combines_text_and_variables():
+    out = NodeForgeIfElse().run(
+        transform_table("1 == 1", 'input + " / " + str(count)', "expression"),
+        json.dumps({"count": "3"}),
+        branch_1="shot",
+    )
+    assert out == ("shot / 3",)
+
+
+def test_expression_transform_rejects_attribute_access():
+    with pytest.raises(ValueError, match=r"B1 transform .* failed"):
+        NodeForgeIfElse().run(transform_table("1 == 1", "input.upper()", "expression"), "", branch_1="x")
+
+
+def test_transform_applies_only_to_the_selected_branch():
+    rows = json.dumps([
+        {"label": "A", "condition": "1 == 2", "transform": "X"},
+        {"label": "B", "condition": "1 == 1", "transform": "%input%!"},
+    ])
+    assert NodeForgeIfElse().run(rows, "", branch_1="a", branch_2="b") == ("b!",)
+
+
+def test_else_transform_applies_when_nothing_is_true():
+    config = json.dumps({"branches": [{"label": "B1", "condition": "1 == 2"}], "else": {"transform": "%input% / else"}})
+    assert NodeForgeIfElse().run(config, "", **{"else": "E"}) == ("E / else",)
+
+
+def test_else_transform_does_not_apply_to_a_true_branch():
+    config = json.dumps({
+        "branches": [{"label": "B1", "condition": "1 == 1"}],
+        "else": {"transform": "%input% / else"},
+    })
+    assert NodeForgeIfElse().run(config, "", branch_1="A", **{"else": "E"}) == ("A",)
+
+
+def test_else_expression_transform_uses_variables():
+    config = json.dumps({"branches": [], "else": {"transform": "input + ' ' + str(count)", "transform_mode": "expression"}})
+    assert NodeForgeIfElse().run(config, json.dumps({"count": "3"}), **{"else": "E"}) == ("E 3",)
+
+
+def test_else_transform_needs_text_input():
+    config = json.dumps({"branches": [], "else": {"transform": "%input%"}})
+    with pytest.raises(ValueError, match="Else has a transform, but its input is not text"):
+        NodeForgeIfElse().run(config, "", **{"else": object()})
+
+
+def test_unknown_transform_mode_is_an_error():
+    with pytest.raises(ValueError, match="transform mode must be one of"):
+        NodeForgeIfElse().run(transform_table("1 == 1", "x", "shout"), "", branch_1="a")
