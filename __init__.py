@@ -1,5 +1,6 @@
 from .nodes.io_files import NodeForgeLoadFile, read_text_sections
 from .nodes.config_table import NodeForgeConfigTable
+from .nodes.if_else import NodeForgeIfElse
 from .nodes.io_images import NodeForgeLoadImage, list_images
 from .nodes.switch_case import NodeForgeSwitchCase
 from .nodes.variables import NodeForgeResolveString, NodeForgeVariables
@@ -12,6 +13,7 @@ NODE_CLASS_MAPPINGS = {
     "NodeForgeVariables": NodeForgeVariables,
     "NodeForgeResolveString": NodeForgeResolveString,
     "NodeForgeSwitchCase": NodeForgeSwitchCase,
+    "NodeForgeIfElse": NodeForgeIfElse,
     "NodeForgeConfigTable": NodeForgeConfigTable,
 }
 
@@ -21,6 +23,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "NodeForgeVariables": "NodeForge: Variables",
     "NodeForgeResolveString": "NodeForge: ResolveString",
     "NodeForgeSwitchCase": "NodeForge: Switch Case",
+    "NodeForgeIfElse": "NodeForge: If Else",
     "NodeForgeConfigTable": "NodeForge: Config Table",
 }
 

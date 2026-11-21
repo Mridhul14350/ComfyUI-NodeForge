@@ -209,6 +209,53 @@ Rules:
 
 Example: `value` = `2`, cases table rows `1` (label `Red`), `2` (label `Green`), `3` (label `Blue`), with image branches on `case_result_1`–`_3`. Only the Green branch (`case_result_2`) runs.
 
+### NodeForge: If Else
+
+Category: `NodeForge/Flow`
+
+Works like an if / else-if ladder. It checks the conditions in the **branch table** from top to bottom. The input of the first true branch passes straight to `output`. If no condition is true, `else` is used. Only the selected input is evaluated, so unused branches never run.
+
+**The branch table**
+
+The node starts with one row. Each **+ Add branch** click shows one more row and its matching `branch_N` input, up to 10. A row is also shown when it has a condition or a connected input. Each row has, in order:
+- a number (`1` to `10`) that is the row's position. Row N is checked as `branch_N`,
+- a **Label** (default `Branch 01`, `Branch 02`, and so on). It is shown on the input dot and is only for display,
+- a **Condition**: a Python expression that is true or false,
+- a **×** button that deletes the row and its `branch_N` input. Links below it move up one slot, and later default labels are renumbered.
+
+The **else** row at the bottom has no condition. Its `else` input is used when no branch is true. It does not count toward the 10 branches.
+
+Blue rows have a condition and a connected input. Yellow rows have a condition without a connected input, or a connected input without a condition. A yellow row fails the run when it is selected, so connect or fill it in.
+
+**Conditions**
+
+- Written as Python expressions, for example `count > 3` or `mode == "draft" and steps >= 20`.
+- Variables from **NodeForge: Variables** are used by name, for example `count`. Whole numbers are numbers, decimals are floats, and other values are text. Compare text with quotes: `mode == "draft"`. Variables whose names contain `-` (for example `my-name`) cannot be used in a condition.
+- Helpers: `len`, `int`, `float`, `str`, `abs`, `min`, `max`. A variable with one of these names is shadowed by the helper.
+- Operators: `and`, `or`, `not`, `+`, `-`, `*`, `/`, `//`, `%`, comparisons, `in`, `is`, and parentheses. `**` is not allowed.
+- Only these expressions are allowed. Attribute access (`x.upper()`), indexing (`x[0]`), lambdas, imports and names that start with `_` are rejected with an error.
+- Connect the **variables** input to the output of **NodeForge: Variables** when a condition uses variables.
+
+**Inputs**
+
+| Input | Notes |
+|---|---|
+| `condition` | The branch table (JSON). Edited with the table on the node. |
+| `variables` | Optional. Connect the output of **NodeForge: Variables**. |
+| `branch_1` … `branch_10` | Optional, lazy. Any type. One per row, added with **+ Add branch**. |
+| `else` | Optional, lazy. Any type. Used when no branch is true. |
+
+**Output:** `output`, type `*`.
+
+Errors (the run stops and the message names the node):
+- A reached row has no condition.
+- A condition is invalid, not allowed, or fails at run time (for example a variable is missing). The message gives the row and the expression.
+- No condition is true and `else` is not connected.
+- The selected branch is not connected.
+- More than 10 branches in the saved table.
+
+Example: rows `Branch 01` (`count > 3`) and `Branch 02` (`count > 0`), with `branch_1` linked to a large-image branch, `branch_2` to a small-image branch, and `else` to a placeholder. With `count` = `5`, only the large-image branch runs.
+
 ### NodeForge: Config Table
 
 Category: `NodeForge/Flow`
