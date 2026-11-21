@@ -244,6 +244,11 @@ Rules:
 - An `env` value with no matching block is an error. The message lists the blocks in the table.
 - Errors name the node and the line or block involved.
 
+## Development
+
+Make all changes in this dev copy, never in the installed copy at `ComfyUI/custom_nodes/ComfyUI-NodeForge`. To test a change in ComfyUI, run `scripts\sync-to-comfyui.ps1`. It copies the runtime files (`__init__.py`, `nodes/`, `web/`) into the installed copy.
+
+The sync uses `robocopy /MIR`, which deletes files in the installed copy that are missing from dev, and it makes no backup. Compare the two folders first, and do not sync while a file exists only in the installed copy.
 ## Install
 
 Copy this folder into `ComfyUI/custom_nodes/` and restart ComfyUI. No extra packages are needed.

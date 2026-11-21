@@ -101,7 +101,8 @@ function syncOutputs(node) {
     setKeysVisible(node);
     const wanted = wantedOutputs(node);
 
-    while (node.outputs.length > wanted.length) {
+    // While a saved workflow loads, the keys are not set yet. Trimming then would drop saved links.
+    while (!node.nfLoading && node.outputs.length > wanted.length) {
         node.removeOutput(node.outputs.length - 1);
     }
     while (node.outputs.length < wanted.length) {
@@ -486,11 +487,20 @@ app.registerExtension({
                     keysVisible: () => keysEnabled(this),
                     getComputed: () => computedSource(this),
                 });
-                // Pin the box to its content so it does not stretch into spare node height.
+                // Measure the content height, not the live box. Using the live height makes the node grow with itself.
+                const contentHeight = () => {
+                    const { flex, height } = root.style;
+                    root.style.flex = "none";
+                    root.style.height = "auto";
+                    const h = root.offsetHeight;
+                    root.style.flex = flex;
+                    root.style.height = height;
+                    return h;
+                };
                 const box = this.addDOMWidget("file_box", "custom", root, {
                     serialize: false,
-                    getMinHeight: () => root.offsetHeight,
-                    getMaxHeight: () => root.offsetHeight,
+                    getMinHeight: contentHeight,
+                    getMaxHeight: contentHeight,
                 });
                 // Not every frontend version reads the serialize option, so set it directly.
                 box.serialize = false;
@@ -531,6 +541,21 @@ app.registerExtension({
             return result;
         };
 
+        // Links are synced while configure runs, before the saved keys are applied. Hold off trimming until it ends.
+        const configure = nodeType.prototype.configure;
+        nodeType.prototype.configure = function () {
+            const wasLoading = this.nfLoading;
+            this.nfLoading = true;
+            let result;
+            try {
+                result = configure?.apply(this, arguments);
+            } finally {
+                this.nfLoading = wasLoading;
+            }
+            syncOutputs(this);
+            return result;
+        };
+
         const onConnectionsChange = nodeType.prototype.onConnectionsChange;
         nodeType.prototype.onConnectionsChange = function () {
             const result = onConnectionsChange?.apply(this, arguments);
@@ -542,7 +567,14 @@ app.registerExtension({
         nodeType.prototype.onConfigure = function () {
             const upgraded = upgradeWidgetValues(this.widgets_values);
             if (upgraded) this.widgets_values = upgraded;
-            const result = onConfigure?.apply(this, arguments);
+            const wasLoading = this.nfLoading;
+            this.nfLoading = true;
+            let result;
+            try {
+                result = onConfigure?.apply(this, arguments);
+            } finally {
+                this.nfLoading = wasLoading;
+            }
             if (upgraded) {
                 const [file, filePath, outputType, keys] = upgraded;
                 const values = { file, file_path: filePath, output_type: outputType, keys };
