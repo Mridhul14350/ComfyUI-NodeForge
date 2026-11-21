@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "powershell": "python \"G:\\ComfyUI Video Gen\\ComfyUI Workflows\\My Workflows\\CustomWorkflows\\tools\\session_start_readmes.py\"",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}
