@@ -91,12 +91,14 @@ function setKeysVisible(node) {
 
 // Keys mode only grows the node, so the keys box has room. Other modes fit the height to the content.
 function fitLoadFileNode(node) {
+    // The keys box is measured mid-load, before layout settles; keep the saved size instead.
+    if (node.nfLoading) return;
     const [w, h] = node.computeSize();
     const height = keysEnabled(node) ? Math.max(node.size[1], h) : h;
     node.setSize([Math.max(node.size[0], w), height]);
 }
 
-function syncOutputs(node) {
+function syncOutputs(node, { fit = true } = {}) {
     if (!node.outputs) return;
     setKeysVisible(node);
     const wanted = wantedOutputs(node);
@@ -116,7 +118,7 @@ function syncOutputs(node) {
     });
 
     node.nfRefreshFileBox?.();
-    fitLoadFileNode(node);
+    if (fit) fitLoadFileNode(node);
     node.setDirtyCanvas?.(true, true);
 }
 
@@ -552,7 +554,7 @@ app.registerExtension({
             } finally {
                 this.nfLoading = wasLoading;
             }
-            syncOutputs(this);
+            syncOutputs(this, { fit: false });
             return result;
         };
 
